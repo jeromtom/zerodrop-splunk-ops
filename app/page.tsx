@@ -266,8 +266,8 @@ export default async function LandingPage() {
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-zinc-500 sm:flex-row">
           <Logo />
           <p>
-            Built for the H0 hackathon · Next.js on Vercel ·{" "}
-            <span className="text-zinc-400">Amazon DynamoDB</span> single-table backend
+            ZeroDrop + DropWatch · observability on Splunk ·{" "}
+            <span className="text-zinc-400">DynamoDB</span> single-table backend
           </p>
         </div>
       </footer>
