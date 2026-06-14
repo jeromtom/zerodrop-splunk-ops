@@ -1,74 +1,96 @@
 # DEMO_SCRIPT — DropWatch, under 3 minutes
 
 Target runtime **2:40**. Record 1080p+, narrate over it. The story: a live drop
-goes viral → telemetry lands in Splunk → the DropWatch agent detects a stampede
-**and** an oversell-bot cluster → recommends a throttle → operator applies it.
+goes viral → telemetry lands in **Splunk via HEC** → the **DropWatch agent** reads
+the live stream, reasons with an LLM, detects an oversell-bot cluster + a stampede,
+recommends an action → operator applies it.
 
-**Prep**
-- Two browser windows: (1) the app at `http://localhost:3000`, (2) Splunk with
-  the imported DropWatch dashboard (or skip Splunk and stay in mock mode if no
-  account — the `/ops` page tells the same story offline).
-- Logged in as demo@zerodrop.app; AURA-1 drop reset to 0/100.
-- A terminal ready with `npm run ops:demo` (fallback / B-roll).
+> **Verified live on 2026-06-14** against the Splunk Cloud trial: HEC ingestion
+> works (events land in the `zerodrop` index), and `/ops` runs the agent with the
+> **real AI/ML LLM** (`telemetry: buffer · LLM: aiml`), reporting health 75 + a HIGH
+> oversell-bot finding. Record what's described below — it matches the actual UI.
+
+## What is and isn't live on the trial (so narration stays honest)
+- **LIVE:** ZeroDrop hot paths → Splunk HEC ingestion → the `zerodrop` index +
+  dashboard. The DropWatch agent + **live LLM reasoning** (AI/ML API).
+- **WIRED but not active on a Cloud *trial*:** reading telemetry *back* out of
+  Splunk via the **REST search API / Splunk MCP Server**, and **Splunk Hosted
+  Models**. Cloud trials don't expose the search port, so `/ops` analyzes its
+  in-process telemetry buffer instead. These paths are implemented + documented
+  (README, docs/SPLUNK_MCP.md) and light up on a non-trial stack — that's also the
+  path to the optional **$1,000 Best-Use-of-MCP** bonus. Narrate them as "wired,
+  shown in the code/docs," not as running, unless you stand up an MCP server.
+
+## Recommended recording mode
+- **Primary (best AI story):** keep `AIMLAPI_API_KEY` set → header reads
+  `LLM: aiml`, real model reasoning. Reliably shows the **HIGH oversell-bot**
+  finding + health 75; the **stampede** shows in the metrics panel (claim rate
+  ~7× baseline, peak ~64/min). Narrate the stampede from those metrics.
+- **Alternative (guaranteed two finding cards):** unset `AIMLAPI_API_KEY` before
+  `npm run dev` → header reads `LLM: rules`; the deterministic engine renders
+  **both** "Stampede onset" and "Oversell-bot cluster" as separate HIGH cards
+  (this is what `npm run ops:test` asserts, 10/10). Use this if you want two cards
+  on screen; you lose the "live LLM" line.
 
 ---
 
+**Prep**
+- App at `http://localhost:3000` (run `npm run db:local`, then `npm run db:seed`,
+  then `npm run dev`; log in `demo@zerodrop.app / drop-zero-2026`). Note: if your
+  other project uses :3000, run `PORT=3055 npm run dev` and use that URL.
+- Second window: Splunk with the imported `dashboards/dropwatch.xml` (the index
+  already holds seeded demo events).
+- Terminal ready with `npm run ops:demo` (B-roll: prints the agent report end-to-end).
+
 ### 0:00–0:20 — The problem + the guarantee
-> "Flash drops sell out in seconds. The #1 way brands lose trust is overselling.
-> ZeroDrop makes that impossible — every claim is one atomic DynamoDB
-> conditional write. But once you're safe, the next question is: *what's actually
-> happening during the drop?* That's DropWatch."
+> "Flash drops sell out in seconds, and the #1 way brands lose trust is
+> overselling. ZeroDrop makes that impossible — every claim is one atomic
+> DynamoDB conditional write. Once you're safe, the question becomes: what's
+> actually happening during the drop? That's DropWatch."
 
-Show the landing page, then the AURA-1 drop at 0/100.
+Show the landing page, then a drop at 0/100.
 
-### 0:20–0:50 — Generate a live drop (telemetry → Splunk)
-- Click **Unleash the stampede** (250 buyers). Stock bar races to **100/100,
-  oversold 0**.
+### 0:20–0:50 — Generate a live drop (telemetry → Splunk via HEC)
+- Click **Unleash the stampede**. Stock bar races to **100/100, oversold 0**.
 > "Every claim, hold, expiry, oversell-reject, waitlist and checkout just emitted
 > a structured event to Splunk over HTTP Event Collector."
 
-Cut to the Splunk dashboard; run `index=zerodrop sourcetype=zerodrop:telemetry
-| stats count by event` — the events are there. Point at the **claim-rate
-timechart** spiking and the **oversell-reject by /24 subnet** table.
+Cut to Splunk; run `index=zerodrop sourcetype=zerodrop:telemetry | stats count by
+event`. The events are there. Point at the **claim-rate timechart** spiking and
+the **oversell-reject by /24 subnet** table.
 
 ### 0:50–1:50 — The agent reasons (the AI moment)
-Open **/ops**.
-> "DropWatch is an agent. It pulls recent telemetry back out of Splunk — through
-> the Splunk MCP Server — summarises it, and an LLM on Splunk Hosted Models
-> reasons about drop health."
+Open **/ops**, click **Re-scan**.
+> "DropWatch is an agent: it reads the live telemetry stream, summarises it, and
+> an LLM reasons about drop health."
 
-Point at the header: `telemetry: mcp · LLM: hosted-model` (or `buffer · rules`
-in offline mock mode). Click **Re-scan**. Walk the finding cards:
-- **Drop-health score** drops from 100.
-- **[HIGH] Stampede onset** — "claim rate spiked 7x baseline."
-- **[HIGH] Oversell-attempt bot cluster** — "subnet 10.66.6.0/24, 12 IPs,
-  produced 54% of all oversell-rejects — the bot signature. No oversell happened;
-  the DynamoDB guard held."
-
-Show the **SPL run by agent** panel — the exact search it issued.
+Point at the header (`telemetry: buffer · LLM: aiml`) and walk the result:
+- **Drop-health score: 75/100.**
+- **[HIGH] Oversell-bot activity** — narrate the agent's own words: the oversell
+  reject rate is ~58%, and the **10.66.6.0/24 subnet** produces the majority of
+  rejects — the bot signature. **No oversell happened; the DynamoDB guard held.**
+- Point at the **metrics panel**: claim rate ~7× baseline, peak ~64/min — the
+  stampede. (In `rules` mode this is its own HIGH card.)
 
 ### 1:50–2:25 — Recommend → apply (close the loop)
-> "It doesn't just alert — it recommends concrete actions."
-- Click **Enable queue throttle** on the stampede card → green "✓ throttle
-  enabled."
-- Click **Flag 10.66.6.0/24** on the bot card → "✓ flagged for soft-block."
-> "Each action writes a breadcrumb back into Splunk, so the whole remediation
-> loop is observable too."
+> "It doesn't just alert — it recommends a concrete action."
+- On the finding card, click **Flag IP cluster** (`flag_ip_cluster` →
+  10.66.6.0/24) → green "✓ flagged."
+> "The action is recorded to the live feed, so the remediation is observable too."
 
-Show the **Applied actions** list and the live feed updating.
+Show the **Applied actions / live feed** updating.
 
 ### 2:25–2:40 — Close
-> "DropWatch turns ZeroDrop's hot paths into Splunk telemetry, and an agent that
-> reads it back through the MCP Server, reasons with Splunk Hosted Models, and
-> acts. Oversell-proof — and now fully observable."
+> "DropWatch turns ZeroDrop's hot paths into Splunk telemetry over HEC, and an
+> agent that reads it, reasons with an LLM, and acts — with the MCP Server and
+> Splunk Hosted Models paths wired for a production stack. Oversell-proof, and now
+> fully observable."
 
-Optional B-roll: terminal `npm run ops:demo` printing the same two findings, to
-prove it runs end-to-end offline.
+Optional B-roll: terminal `npm run ops:demo` printing the severity-ranked report.
 
 ---
 
-**Backup (no Splunk account at record time):** the entire flow works in mock
-mode. On `/ops`, click **Run mock drop** instead of using a live Splunk index —
-the header shows `telemetry: buffer · LLM: rules` and the same findings appear.
-Note in narration that the live Splunk/MCP/Hosted-Models paths are wired and
-documented (README + docs/SPLUNK_MCP.md), gated behind env.
+**Backup (no live Splunk at record time):** the whole flow runs offline. On `/ops`
+click **Run mock drop** (seeds the buffer), then **Re-scan** — same findings,
+header shows `telemetry: buffer`. Narrate that the live Splunk HEC path is verified
+and the MCP/Hosted-Models paths are wired + documented, gated behind env.
