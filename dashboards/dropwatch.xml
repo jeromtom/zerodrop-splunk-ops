@@ -1,0 +1,139 @@
+<dashboard version="1.1" theme="dark">
+  <label>DropWatch — ZeroDrop Flash-Drop Health</label>
+  <description>
+    Agentic observability for ZeroDrop. Telemetry arrives via HEC
+    (sourcetype zerodrop:telemetry, index zerodrop). The DropWatch agent runs
+    these same searches via the Splunk MCP Server to reason about drop health.
+    Import: Dashboards &gt; Create New Dashboard &gt; Classic / Source &gt; paste this XML.
+  </description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="tr">
+      <label>Time range</label>
+      <default>
+        <earliest>-30m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="drop">
+      <label>Drop ID (blank = all)</label>
+      <default></default>
+    </input>
+  </fieldset>
+
+  <!-- KPI row -->
+  <row>
+    <panel>
+      <title>Units claimed</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=claim $drop:dropId$ | stats count</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Oversell-reject attempts</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=oversell_reject $drop:dropId$ | stats count</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0xf8be34","0xdc4e41"]</option>
+        <option name="rangeValues">[10,50]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Hold expiries</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=hold_expiry $drop:dropId$ | stats count</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Checkouts (revenue events)</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=checkout $drop:dropId$ | stats count</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Stampede onset -->
+  <row>
+    <panel>
+      <title>Claim rate / min — stampede onset</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=claim $drop:dropId$ | timechart span=1m count as claims_per_min</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.legend.placement">none</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Event mix over time</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop:dropId$ | timechart span=1m count by event</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Bot detection -->
+  <row>
+    <panel>
+      <title>Oversell-reject attempts by /24 subnet — bot clusters</title>
+      <table>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry event=oversell_reject $drop:dropId$
+| rex field=ip "(?&lt;subnet&gt;\d+\.\d+\.\d+)\.\d+"
+| stats count as rejects dc(ip) as distinct_ips by subnet
+| sort - rejects
+| eval bot_signal=if(rejects&gt;=10 AND distinct_ips&gt;=3,"LIKELY BOT CLUSTER","")</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <title>Hold-expiry storm (abandonment)</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry (event=hold_create OR event=hold_expiry) $drop:dropId$ | timechart span=1m count by event</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Raw feed -->
+  <row>
+    <panel>
+      <title>Live telemetry feed</title>
+      <table>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop:dropId$
+| table _time event dropName ip position buyer latencyMs
+| sort - _time | head 100</query>
+          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

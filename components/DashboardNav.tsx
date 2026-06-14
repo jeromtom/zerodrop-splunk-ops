@@ -24,6 +24,12 @@ export function DashboardNav({ brandName }: { brandName: string }) {
         </div>
         <nav className="flex items-center gap-3 text-sm">
           <Link
+            href="/ops"
+            className="rounded-lg px-3 py-2 text-zinc-400 transition hover:text-foreground"
+          >
+            DropWatch ops
+          </Link>
+          <Link
             href="/dashboard/new"
             className="rounded-lg bg-accent px-4 py-2 font-medium text-zinc-950 transition hover:brightness-110"
           >

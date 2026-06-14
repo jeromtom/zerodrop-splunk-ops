@@ -1,6 +1,6 @@
 {
-  "name": "h0-zero-stack",
-  "version": "0.1.0",
+  "name": "zerodrop-dropwatch",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,9 @@
     "db:init": "node --env-file=.env.local scripts/init-table.mjs",
     "db:seed": "node --env-file=.env.local scripts/init-table.mjs && node --env-file=.env.local scripts/seed.mjs",
     "db:init:aws": "node scripts/init-table.mjs",
-    "db:seed:aws": "node scripts/init-table.mjs && node scripts/seed.mjs"
+    "db:seed:aws": "node scripts/init-table.mjs && node scripts/seed.mjs",
+    "ops:demo": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-demo.mts",
+    "ops:test": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-test.mts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1068.0",
