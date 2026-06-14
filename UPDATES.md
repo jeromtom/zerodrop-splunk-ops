@@ -1,11 +1,13 @@
 # UPDATES — the significant update for the Splunk Agentic Ops Hackathon
 
 > **Eligibility note (Splunk rules):** a pre-existing project must be
-> *significantly updated after the start of the submission period*. ZeroDrop
-> existed before this hackathon as an oversell-proof flash-drop app. The
-> **DropWatch agentic observability layer documented here is that significant
-> update** — a new, first-class feature built on **Jun 14–15, 2026** specifically
-> for this hackathon. None of it existed before.
+> *significantly updated after the start of the Hackathon Submission Period
+> (May 18, 2026)*. ZeroDrop existed before this hackathon as an oversell-proof
+> flash-drop app. The **DropWatch agentic observability layer documented here is
+> that significant update** — a new, first-class feature built on **Jun 14–15,
+> 2026**, well after the May 18, 2026 submission-period start, specifically for
+> this hackathon. None of it existed before; every file listed below is new or
+> newly instrumented for DropWatch.
 
 ## What was added (all new, Jun 14–15 2026)
 
