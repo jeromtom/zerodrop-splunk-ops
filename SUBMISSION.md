@@ -1,4 +1,4 @@
-# DropWatch — Devpost submission copy
+# DropWatch · Devpost submission copy
 
 > Ready-to-paste copy for the **Splunk Agentic Ops Hackathon** (Observability track,
 > $3,000; also targeting one bonus prize). Paste each section into the matching
