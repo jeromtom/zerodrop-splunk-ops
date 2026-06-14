@@ -64,10 +64,17 @@
 
 ## What is verified vs. mocked
 
+> Verified **live on 2026-06-14** against a Splunk Cloud trial (stack
+> `prd-p-p8i91`): HEC ingestion works end-to-end (118 events landed in the
+> `zerodrop` index), a full `next build` succeeds, and `/ops` runs the agent with
+> a real LLM (`telemetry: buffer · LLM: aiml`).
+
 | Area | Status |
 |---|---|
 | Agent pipeline (synth → summarise → reason → findings) | **Verified** — `npm run ops:test` passes (10/10 assertions), `npm run ops:demo` flags stampede + oversell-bot |
 | Rules-engine reasoning tier | **Verified** offline |
-| HEC client, MCP/REST search, Hosted-Models/AIML LLM tiers | **Code-complete; not exercised against live Splunk/LLM** (no Splunk account yet — see SETUP.md). All gated behind env and no-op safely. |
-| `/ops` page + API routes | **Code-complete; not run in a full Next build** (node_modules not installed in this constrained environment). Logic is shared with the verified scripts. |
+| HEC client (app → Splunk) | **Verified live** — 118 events ingested to the `zerodrop` index via HEC on the Cloud trial |
+| AIML LLM reasoning tier | **Verified live** — `/ops` reasons with the AI/ML API (`LLM: aiml`), health 75 + HIGH oversell-bot finding |
+| MCP/REST search + Splunk Hosted-Models tiers | **Code-complete + documented; wired but not active on a Cloud *trial*** (trials don't expose the search port, so `/ops` analyzes the in-process buffer). Light up on a non-trial stack — see README + docs/SPLUNK_MCP.md. All gated behind env and no-op safely. |
+| `/ops` page + API routes | **Verified** — full `next build` succeeds and the live `/ops` scan/feed/apply API flow runs |
 | ZeroDrop base guarantee | Unchanged from the original, oversell still 0 |
