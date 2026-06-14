@@ -4,9 +4,10 @@
 **edit a submission until the deadline**, so submit once you have a working video
 link — you can still polish afterward.
 
-> The whole submission is automatable **except one step: the demo video.** Nobody
-> can screen-record the product but you. Do Step 1, then Step 2/4 can be done by
-> the Claude-in-Chrome agent even while you're away.
+> The agent can DRAFT the whole Devpost form, but **you make the final Submit click
+> yourself — never auto-submit.** Plan: get the video done (Step 1), let the agent
+> fill the form (Step 4), then you review and **Submit early** (Step 3) — well before
+> the deadline, not at it.
 
 ---
 
@@ -85,9 +86,9 @@ deadline.
 
 ---
 
-## 4. Claude-in-Chrome automation prompt (fills + submits the form)
+## 4. Claude-in-Chrome prompt (fills the form — YOU submit)
 
-> Paste the block in Step 4 of this file's companion (also in chat). **Replace the
-> video URL placeholder first.** The agent reads `SUBMISSION.md` for the exact copy,
-> fills every field, opts into the right tracks, and submits — pausing only if a
-> login/captcha wall appears.
+> Paste the block from chat. **Replace the video URL placeholder first.** The agent
+> reads `SUBMISSION.md` for the exact copy, fills every field, opts into the right
+> tracks, then **STOPS at the review screen**. **You** make the final Submit click
+> (never auto-submit) — and do it early, not at the deadline.
