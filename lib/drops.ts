@@ -8,6 +8,8 @@ import {
 import { ulid } from "ulid";
 import { ddb, TABLE } from "./db";
 import type { Claim, ClaimResult, Drop } from "./types";
+import { record } from "./dropwatch/sink";
+import { maskBuyer, newEvent } from "./dropwatch/events";
 
 /**
  * ZeroDrop data layer — DynamoDB single-table design.
@@ -135,8 +137,13 @@ export async function listDropsByOwner(email: string): Promise<Drop[]> {
  * `totalStock` of them succeed. The new `claimed` value doubles as the
  * buyer's claim number.
  */
-export async function claimDrop(dropId: string, email: string): Promise<ClaimResult> {
+export async function claimDrop(
+  dropId: string,
+  email: string,
+  ctx: { ip?: string } = {}
+): Promise<ClaimResult> {
   const now = Date.now();
+  const t0 = Date.now();
   let position: number;
   try {
     const res = await ddb.send(
@@ -159,7 +166,18 @@ export async function claimDrop(dropId: string, email: string): Promise<ClaimRes
     if (!drop) return { outcome: "error" };
     if (drop.status !== "live") return { outcome: "ended" };
     if (drop.startsAt > now) return { outcome: "not_started" };
-    return waitlistDrop(dropId, email); // genuinely sold out
+    // Genuinely sold out: this attempt hit the conditional guard. Telemetry for
+    // DropWatch — a cluster of these from one IP is the bot signature.
+    void record(
+      newEvent("oversell_reject", dropId, {
+        buyer: maskBuyer(email),
+        ip: ctx.ip,
+        dropName: drop.name,
+        latencyMs: Date.now() - t0,
+        meta: { reason: "claimed>=totalStock" },
+      })
+    );
+    return waitlistDrop(dropId, email, ctx); // genuinely sold out
   }
 
   const claim: Claim = {
@@ -172,11 +190,25 @@ export async function claimDrop(dropId: string, email: string): Promise<ClaimRes
     holdExpiresAt: Math.floor(now / 1000) + HOLD_SECONDS,
   };
   await putClaim(claim);
+  // DropWatch telemetry: a successful claim opens a hold.
+  void record(
+    newEvent("claim", dropId, {
+      buyer: maskBuyer(email),
+      ip: ctx.ip,
+      position,
+      latencyMs: Date.now() - t0,
+    })
+  );
+  void record(newEvent("hold_create", dropId, { buyer: maskBuyer(email), position }));
   return { outcome: "held", claim };
 }
 
 /** Sold out -> atomic waitlist position via the same counter trick. */
-async function waitlistDrop(dropId: string, email: string): Promise<ClaimResult> {
+async function waitlistDrop(
+  dropId: string,
+  email: string,
+  ctx: { ip?: string } = {}
+): Promise<ClaimResult> {
   const res = await ddb.send(
     new UpdateCommand({
       TableName: TABLE,
@@ -195,6 +227,13 @@ async function waitlistDrop(dropId: string, email: string): Promise<ClaimResult>
     createdAt: Date.now(),
   };
   await putClaim(claim);
+  void record(
+    newEvent("waitlist_add", dropId, {
+      buyer: maskBuyer(email),
+      ip: ctx.ip,
+      position: claim.position,
+    })
+  );
   return { outcome: "waitlisted", claim };
 }
 
@@ -272,6 +311,13 @@ export async function reconcileHold(claim: Claim): Promise<Claim> {
   ).catch((err) => {
     if (!isConditionFailure(err)) throw err;
   });
+  void record(
+    newEvent("hold_expiry", claim.dropId, {
+      buyer: maskBuyer(claim.email),
+      position: claim.position,
+      meta: { abandoned: true },
+    })
+  );
   return { ...claim, status: "EXPIRED", holdExpiresAt: undefined };
 }
 
@@ -300,7 +346,14 @@ export async function confirmClaim(
     delete attrs.PK;
     delete attrs.SK;
     delete attrs.type;
-    return { ok: true, claim: attrs as unknown as Claim };
+    const confirmed = attrs as unknown as Claim;
+    void record(
+      newEvent("checkout", dropId, {
+        buyer: maskBuyer(confirmed.email),
+        position: confirmed.position,
+      })
+    );
+    return { ok: true, claim: confirmed };
   } catch (err) {
     if (!isConditionFailure(err)) throw err;
     return { ok: false, claim: await getClaim(dropId, claimId) };
@@ -423,7 +476,11 @@ export async function simulateBuyers(
     while (next < count) {
       const i = next++;
       try {
-        const res = await claimDrop(dropId, `buyer-${i}-${run}@sim.zerodrop.app`);
+        // ~30% of simulated traffic comes from a single "bot" IP cluster so the
+        // DropWatch agent has a realistic oversell-bot pattern to detect.
+        const ip =
+          i % 10 < 3 ? `10.66.6.${(i % 12) + 1}` : `73.${i % 200}.${i % 255}.${(i * 7) % 255}`;
+        const res = await claimDrop(dropId, `buyer-${i}-${run}@sim.zerodrop.app`, { ip });
         if (res.outcome === "held") claimed++;
         else if (res.outcome === "waitlisted") waitlisted++;
         else errors++;
@@ -437,7 +494,7 @@ export async function simulateBuyers(
   );
 
   const drop = await getDrop(dropId);
-  return {
+  const result = {
     requested: count,
     claimed,
     waitlisted,
@@ -447,4 +504,11 @@ export async function simulateBuyers(
     finalClaimed: drop?.claimed ?? 0,
     totalStock: drop?.totalStock ?? 0,
   };
+  void record(
+    newEvent("sim_summary", dropId, {
+      dropName: drop?.name,
+      meta: { ...result },
+    })
+  );
+  return result;
 }

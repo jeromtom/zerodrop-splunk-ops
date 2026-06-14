@@ -17,7 +17,11 @@ export async function POST(
   const email = String(body?.email ?? "").trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return jsonError(400, "A valid email is required.");
 
-  const result = await claimDrop(id, email);
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    undefined;
+  const result = await claimDrop(id, email, { ip });
 
   switch (result.outcome) {
     case "held":
