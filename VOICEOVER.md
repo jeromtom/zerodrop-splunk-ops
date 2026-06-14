@@ -74,12 +74,36 @@ per minute; if any clip runs long, trim words rather than speeding up the voice.
 
 ---
 
-## 3. Avatar intro/outro (optional)
+## 3. Avatar intro/outro — ElevenLabs Avatars (ElevenCreative)
 
-A futuristic talking-head avatar works best as a **bookend** — an 8–10 second
-intro and an 8–10 second outro — while the middle stays screen-recording plus
-voiceover. Judges most want to see the product actually working, so don't let an
-avatar eat the demo minutes.
+ElevenLabs now ships native **Avatars** (ElevenCreative → Image & Video):
+talking-head video with **integrated text-to-speech + lip-sync in one tool** —
+tighter sync than importing audio into a separate app, and you're already on the
+platform. Use it for the **bookends** (~9s intro + ~9s outro) and keep the
+0:20–2:25 product demo as screen-recording + the `audio/*.mp3` voiceover, because
+judges most want to see the product actually working.
+
+> **Verified in the docs (Jun 2026):** Avatars are **web-UI only, on a paid plan —
+> there is NO public API yet** ("Not available at launch; planned for future
+> release"). So this is a manual step in the ElevenCreative app; it can't be
+> scripted like the TTS clips, and the TTS API key alone does not unlock it.
+> Docs: https://elevenlabs.io/docs/overview/capabilities/image-video/avatars
+
+**Workflow (ElevenCreative web app):**
+1. Image & Video → Avatar section → **New**.
+2. Create the avatar: upload 3–5 reference photos *or* describe one with a text
+   prompt (futuristic prompt below). Name it; optionally set a default voice.
+3. Select the avatar → **Create Lip Sync** → pick a style (angle / background /
+   lighting).
+4. **Add your script** (the intro or outro text below) → generate speech —
+   integrated TTS, no audio upload needed → review.
+5. Choose the lip-sync model → **Generate** → export the clip. Repeat for the outro.
+6. Drop both clips on the front and back of your screen recording.
+
+**Suggested futuristic avatar prompt:**
+> A sleek futuristic AI presenter in a minimalist dark studio, subtle neon-blue rim
+> lighting and soft holographic ambiance, clean professional attire, looking
+> straight at camera, cinematic, crisp, high detail.
 
 **INTRO (~9s):**
 > This is DropWatch — agentic observability for oversell-proof flash drops. The drop is safe by design. Now let's make it fully observable, on Splunk.
@@ -87,14 +111,10 @@ avatar eat the demo minutes.
 **OUTRO (~9s):**
 > Oversell-proof by construction, observable by design. DropWatch — telemetry to Splunk, an agent that reasons and acts. Thanks for watching.
 
-**Tooling (honest):** ElevenLabs is primarily a **voice** tool — it does not
-natively produce a talking-head avatar. To get a futuristic avatar, generate the
-ElevenLabs audio first, then drive a talking head with **HeyGen**, **D-ID**, or
-**Synthesia** (each accepts an uploaded audio track and lip-syncs an avatar). If
-ElevenLabs has shipped a video/avatar feature in your account, that works too —
-but the audio-plus-HeyGen/D-ID/Synthesia route is the reliable path. Keep the
-avatar on intro and outro only; use plain voiceover over the screen capture for
-the 0:20–2:25 product demo.
+**Timing:** intro + outro ≈ 22s. Pair with the **short agent** beat (Option D in
+section 5) to land ~2:48 — under the 3:00 cap. Do **not** pair avatar bookends with
+the *full* agent beat (3:15 — over). If you skip the avatar, `audio/00-intro.mp3`
+and `audio/06-outro.mp3` are already rendered as a plain-voiceover fallback.
 
 ---
 
@@ -110,8 +130,9 @@ the 0:20–2:25 product demo.
    cluster → live feed. Record at 1080p or higher.
 3. **Lay VO over the capture** in any editor (Clipchamp, DaVinci Resolve,
    CapCut, Premiere). Align each beat clip to its on-screen action; trim dead air.
-4. **Optional avatar intro/outro** — drop the HeyGen/D-ID/Synthesia avatar clips
-   on the front and back only.
+4. **Optional avatar intro/outro** — build them in **ElevenLabs Avatars**
+   (ElevenCreative, web UI, paid plan; see section 3) and drop them on the front
+   and back only. Use the **short agent** beat so the total stays under 3:00.
 5. **Export 1080p** (MP4, H.264). Confirm total runtime is **under 3:00**
    (target ~2:40).
 6. **Upload to YouTube** (or Vimeo/Youku per rules), set to **Public**, language
