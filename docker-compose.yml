@@ -1,0 +1,12 @@
+# Optional alternative to `npm run db:local` (dynalite) for those with Docker.
+# Runs the official Amazon DynamoDB Local image on the same port.
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: -jar DynamoDBLocal.jar -sharedDb -dbPath /data
+    ports:
+      - "8005:8000"
+    volumes:
+      - ddb-data:/data
+volumes:
+  ddb-data:
