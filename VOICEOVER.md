@@ -120,9 +120,44 @@ the 0:20–2:25 product demo.
 
 ---
 
-**Total spoken word count (five narration beats, 0:00–2:40): 335 words.**
-At ~150 words per minute that is about **2 minutes 14 seconds of speech**, leaving
-comfortable headroom for on-screen pauses, the stats-search reveal, and click
-beats while staying safely under the 3-minute cap. The optional avatar intro
-(~28 words) and outro (~26 words) add roughly 22 seconds if you use them, for a
-combined narrated total still comfortably under 3:00.
+## 5. Measured durations + how to stay under the 3:00 cap
+
+Clips are pre-rendered in **`audio/`** (voice **Daniel — Steady Broadcaster**,
+`eleven_multilingual_v2`) via `node --env-file=.env.local scripts/tts.mjs`. The
+chosen voice narrates at ~118 wpm (clearer than the 150 wpm first assumed), so
+**actual** durations are longer than a word count implies — measured:
+
+| Clip | Duration |
+|---|---|
+| `00-intro.mp3` (avatar) | 11.4 s |
+| `01-problem.mp3` | 25.9 s |
+| `02-hec.mp3` | 31.6 s |
+| `03-agent.mp3` (full) | 65.0 s |
+| `03-agent-short.mp3` (tightened) | 47.3 s |
+| `04-apply.mp3` | 28.2 s |
+| `05-close.mp3` | 23.7 s |
+| `06-outro.mp3` (avatar) | 11.3 s |
+
+**The rule is "less than three (3) minutes" — a hard cap.** Pick a combination
+that lands safely under it (these are pure VO; add a little for on-screen pauses):
+
+| Option | Beats | Total |
+|---|---|---|
+| **B (recommended)** | short agent, no avatar bookends | **2:37** |
+| D | short agent + outro only | 2:48 |
+| A | full agent, no bookends | 2:54 |
+| C | short agent + intro + outro | 2:59 (too tight) |
+| ❌ | full agent + intro + outro | **3:15 — OVER, do not use** |
+
+**Recommendation:** use **`03-agent-short.mp3`** (Option B/D). If you want the
+futuristic avatar, use the **outro only** (Option D, 2:48) — never both bookends
+with the full agent beat. The tightened agent narration is:
+
+> DropWatch isn't a passive dashboard — it's an agent. It reads the live telemetry
+> stream, and a real language model reasons about drop health. The header confirms
+> it: reasoning on the live A-I-M-L model. The verdict: drop-health, seventy-five
+> out of a hundred, with a high-severity finding — oversell-bot activity. One
+> subnet, ten-dot-sixty-six-dot-six-dot-zero slash twenty-four, produces most of
+> the oversell-rejects. That's the bot signature. And no oversell ever happened —
+> the DynamoDB guard held. Meanwhile, claim rate runs about seven times baseline.
+> That's the stampede.

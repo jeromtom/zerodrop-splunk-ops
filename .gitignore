@@ -44,3 +44,6 @@ next-env.d.ts
 !.env.example
 .dynalite-data/
 zerodrop-splunk-ops/
+
+# generated voiceover clips
+audio/
