@@ -4,6 +4,12 @@ Paste the block below into Claude in Chrome (Cowork). It handles Splunk account 
 HEC token + Devpost registration. Jerom supervises (captcha/OTP/submit stay manual).
 See SETUP.md for the full detail behind each step.
 
+> **UPDATE (Jun 14):** A Splunk Cloud trial is already provisioned at
+> `https://prd-p-p8i91.splunkcloud.com` (admin `sc_admin`). So skip account/trial creation —
+> just log in and do steps 3–7 below (create index `zerodrop`, enable HEC, mint token
+> `dropwatch`, copy the endpoint URL + token). Reset the temp password on first login.
+> Credentials are NOT stored in this repo.
+
 ```
 You are helping Jerom set up Splunk for the DropWatch project (Splunk Agentic Ops
 Hackathon submission). Identity: Jerom Tom · dev.jeromtom@gmail.com · GitHub jeromtom.
