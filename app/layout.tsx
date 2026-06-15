@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     description: "Provable correctness creates clean signals. The agent reads them.",
     images: ["/og.png"],
   },
-  icons: { icon: "/favicon.ico" },
+  // Icons auto-detected from app/favicon.ico, app/icon.svg, app/apple-icon.png.
 };
 
 export default function RootLayout({

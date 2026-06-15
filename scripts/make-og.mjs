@@ -63,5 +63,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
 </svg>`;
 
 const buf = Buffer.from(svg);
-await sharp(buf, { density: 144 }).png().toFile(out);
-console.log("wrote", out);
+// Render at 2x for crisp text, then downscale to exactly the declared 1200x630.
+await sharp(buf, { density: 144 }).resize(W, H).png().toFile(out);
+console.log("wrote", out, `(${W}x${H})`);
