@@ -13,9 +13,43 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ZeroDrop — Sell out. Never oversell.",
+  metadataBase: new URL("https://dropwatch.jeromtom.com"),
+  title: "DropWatch — agentic observability on Splunk",
   description:
-    "Oversell-proof flash drops for independent brands. Every claim is an atomic DynamoDB conditional write — overselling is impossible by construction.",
+    "DropWatch ships every flash-drop event to Splunk over HEC, then an LLM agent reads it back through the MCP Server, scores drop health, flags oversell-bot subnets (OWASP OAT-005), and monitors its own reasoning.",
+  applicationName: "DropWatch",
+  keywords: [
+    "Splunk",
+    "Splunk MCP Server",
+    "agentic observability",
+    "DropWatch",
+    "bot detection",
+    "HEC",
+    "oversell-proof",
+  ],
+  authors: [{ name: "Jerom Tom", url: "https://jeromtom.com" }],
+  openGraph: {
+    type: "website",
+    url: "https://dropwatch.jeromtom.com",
+    siteName: "DropWatch",
+    title: "DropWatch — agentic observability on Splunk",
+    description: "Provable correctness creates clean signals. The agent reads them.",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "DropWatch — agentic observability on Splunk",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DropWatch — agentic observability on Splunk",
+    description: "Provable correctness creates clean signals. The agent reads them.",
+    images: ["/og.png"],
+  },
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({

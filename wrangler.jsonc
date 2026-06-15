@@ -12,5 +12,6 @@
   "vars": {
     "SPLUNK_MCP_URL": "/api/mcp",
     "SPLUNK_MCP_TOOL": "run_splunk_search"
-  }
+  },
+  "kv_namespaces": [{ "binding": "WAITLIST", "id": "6aaf2f8d5c824201b0d84a33dd173498" }]
 }
