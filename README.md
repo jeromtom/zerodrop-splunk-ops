@@ -1,6 +1,6 @@
 # DropWatch: agentic ops for oversell-proof flash drops
 
-**Splunk Agentic Ops Hackathon** entry · Track: **Observability ($3,000)** · also targeting **Best Use of Splunk MCP Server ($1,000)**
+**Splunk Agentic Ops Hackathon** entry · Track: **Observability ($3,000)** · cross-cutting **Best of Security ($3,000)** · also targeting **Best Use of Splunk MCP Server ($1,000)**
 
 ### 🔗 Links
 
@@ -58,6 +58,25 @@ generic detector still flags a service whose error rate jumped 6 sigma, a queue
 whose depth is climbing, or a route whose latency events spiked. **Software teams,
 ITOps, and NetOps** get the same pull → reason → score → recommend → apply loop
 over their own streams; the drop taxonomy is just the demo payload.
+
+## DropWatch as a security signal (zero false positives, by construction)
+
+Beyond observability, DropWatch is an **abuse-detection engine**. ZeroDrop's core
+guarantee — overselling is *impossible by construction* (every claim is one atomic
+DynamoDB conditional write, no lock, no race) — means an `oversell_reject` event
+**cannot be a bug**. It only fires when a client keeps hammering the claim endpoint
+*after* sellout. Legitimate buyers stop; bots don't. So the reject stream is a
+clean, ground-truth security signal with **no false positives by design**.
+
+The agent pulls that stream out of Splunk, clusters rejects by source subnet, and
+when one `/24` dominates post-sellout rejects it flags an automated checkout-bot
+cluster — then closes the SOC loop: **detect → triage → respond → document**. It
+recommends (and one-click applies) a soft-block / CAPTCHA challenge on the subnet,
+pages on-call via webhook with the reasoning, and writes the action back into Splunk
+as an audit breadcrumb. The same loop generalizes to any abuse signal you can land
+in Splunk: credential-stuffing spikes, scraping bursts, geo/velocity anomalies.
+**Provable correctness in the source system makes the detection substrate itself
+immune to false positives** — a property most security pipelines can only dream of.
 
 ## New in this build
 
