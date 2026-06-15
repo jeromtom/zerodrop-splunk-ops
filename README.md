@@ -4,7 +4,7 @@
 
 ### 🔗 Links
 
-- **🎬 Demo video (2:46):** https://youtu.be/QsFjFh-rE7Y
+- **🎬 Demo video (2:35):** https://youtu.be/mUfKYCnnaME
 - **🤖 Live agent dashboard:** **https://dropwatch.jeromtom.com/ops** — running on Cloudflare Workers, pulling telemetry over the **Splunk MCP Server** path (`telemetry: mcp`) with live LLM reasoning.
 - **🌐 Live site:** https://dropwatch.jeromtom.com
 
