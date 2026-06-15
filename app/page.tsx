@@ -125,16 +125,17 @@ const TICKER: [string, string][] = [
 const STEPS = [
   ["01", "Instrument", "Every hot path emits a structured event: claim, hold, expiry, oversell-reject, waitlist, checkout."],
   ["02", "Ship to Splunk", "Events stream to Splunk over the HTTP Event Collector. Splunk is the system of record."],
-  ["03", "Reason", "The agent pulls telemetry back via the MCP Server, summarizes it, and an LLM scores drop health 0–100."],
+  ["03", "Reason", "The agent pulls telemetry back via the MCP Server, reasons with Splunk Hosted Models (OpenAI-compatible fallback), and scores drop health 0–100."],
   ["04", "Act", "It recommends one concrete fix, applies it in one click, and auto-pages on-call — writing the action back to Splunk."],
 ];
 
 const MODS = [
-  ["Security", "OWASP OAT-005 scalping detection", "The oversell-bot cluster is raised as a security finding (OWASP Automated Threats OAT-005) with a confidence score and a block action, reasoned by Splunk’s Foundation-Sec model. Provable correctness makes it a zero-false-positive bot signal."],
+  ["Security", "OWASP OAT-005 scalping detection", "The oversell-bot cluster is raised as a security finding (OWASP Automated Threats OAT-005) with a confidence score and a block action, reasoned by Splunk’s Foundation-Sec hosted security model. Provable correctness makes it a zero-false-positive bot signal."],
+  ["Hosted Models", "Splunk-native reasoning, with a floor", "The agent reasons on Splunk Hosted Models via an OpenAI-compatible endpoint — and never goes dark: reasoning degrades Hosted Models → hosted API → a deterministic rules engine, while the read path falls back MCP → REST → local buffer."],
   ["AI monitoring", "Agent self-observability", "DropWatch monitors its own agent: LLM tier, latency, token usage, estimated cost, confidence and drift, shipped to Splunk as dropwatch:agent. Parity with Splunk’s AI Agent Monitoring."],
   ["MCP", "Runnable MCP path + | dropwatch command", "The agent pulls telemetry over the Splunk MCP Server’s run_splunk_search contract end-to-end, and | dropwatch runs the same detection natively in the Splunk search bar."],
-  ["Detect", "Anomaly detection + early warning", "A baseline z-score detector flags off-pattern behavior on any index, and claim-rate velocity warns of a building stampede before it crosses the threshold."],
-  ["Respond", "Alert webhooks + packaged Splunk app", "High-severity findings auto-page Slack or PagerDuty with the agent’s reasoning, and an installable Splunk app runs the detectors natively on a schedule."],
+  ["Detect", "Anomaly detection + early warning", "A baseline z-score detector flags off-pattern behavior on any index, and claim-rate velocity plus p95 write latency warn of a building stampede before it crosses the threshold."],
+  ["Respond", "Alert webhooks + packaged Splunk app", "High-severity findings auto-page Slack or PagerDuty with the agent’s reasoning, and an installable Splunk app runs six detectors natively on a schedule."],
 ];
 
 const CLAIM_CODE = `UpdateItem {
