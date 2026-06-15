@@ -238,8 +238,8 @@ runbook is in `SETUP.md`.
 
 DropWatch reasons over Splunk telemetry and automates the operational response: it
 scores drop health, ranks anomalies, and pages on-call through an alert webhook with
-no human in the loop. It is built to use two Splunk AI capabilities, and we are honest
-about which one is running today.
+no human in the loop. It uses several of Splunk's latest AI capabilities, and we are
+honest about which run today.
 
 - **Splunk MCP Server (Best Use of Splunk MCP Server, $1,000).** The agent's "pull
   telemetry" step is a tool call: it issues its SPL through the MCP Server's search tool
@@ -251,6 +251,19 @@ about which one is running today.
   reasoning tier targets Splunk Hosted Models via an OpenAI-compatible endpoint in
   `lib/dropwatch/llm.ts`. It is wired and shown in code and docs; on the trial the live
   reasoning ran on the OpenAI-compatible fallback instead.
+- **Security bridge to Foundation-Sec (also targets Best Use of Hosted Models).** The
+  oversell-bot cluster is an abuse signal, so DropWatch raises it as a SECURITY finding
+  classified by the OWASP Automated Threats taxonomy (OAT-005 Scalping), with a confidence
+  score and a block action, and reasons about it with a Splunk hosted security model
+  (Foundation-Sec-8B) when configured. Provable correctness is what makes the reject
+  cluster a zero-false-positive bot signal (`lib/dropwatch/analyze.ts`, `llm.ts`).
+- **AI Agent Monitoring parity.** DropWatch instruments its own reasoning loop and ships
+  it to Splunk as `dropwatch:agent`: LLM tier, latency, token usage, estimated cost,
+  confidence, and drift, the same dimensions Splunk's AI Agent Monitoring (GA) tracks,
+  surfaced in an "Agent runtime" panel (`lib/dropwatch/agentObs.ts`).
+- **Native `| dropwatch` SPL command.** Pipe telemetry into `| dropwatch` in the Splunk
+  search bar and get one row per finding, so the agentic detection runs where analysts
+  already work, not only in our dashboard (`splunk-app/bin/dropwatch.py`).
 
 **What is live and verified (2026-06-14, stack `prd-p-p8i91`):** ZeroDrop hot paths
 flow to Splunk HEC ingestion (118 events in the `zerodrop` index), a full `next build`,
