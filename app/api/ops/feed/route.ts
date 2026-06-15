@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const dropId = req.nextUrl.searchParams.get("dropId") ?? undefined;
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? 60);
   const windowMin = Number(req.nextUrl.searchParams.get("windowMin") ?? 60);
-  const { events, source } = await fetchTelemetry(dropId, windowMin);
+  const { events, source } = await fetchTelemetry(dropId, windowMin, req.nextUrl.origin);
   const newestFirst = events
     .slice()
     .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))

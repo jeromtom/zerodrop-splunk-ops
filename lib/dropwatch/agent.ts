@@ -45,6 +45,8 @@ export interface ScanOptions {
   windowMin?: number;
   /** Provide events directly (mock mode / tests) and skip the Splunk fetch. */
   events?: DropEvent[];
+  /** Public request origin, used to resolve a relative SPLUNK_MCP_URL (self-host). */
+  origin?: string;
 }
 
 export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
@@ -60,7 +62,7 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
     telemetrySource = "buffer";
     spl = "(events provided directly — mock mode)";
   } else {
-    const fetched = await fetchTelemetry(opts.dropId, windowMin);
+    const fetched = await fetchTelemetry(opts.dropId, windowMin, opts.origin);
     events = fetched.events;
     telemetrySource = fetched.source;
     spl = fetched.spl;

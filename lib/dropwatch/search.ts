@@ -22,12 +22,30 @@ import type { DropEvent } from "./events";
 import { INDEX, SOURCETYPE } from "./events";
 import { recent } from "./sink";
 
-const MCP_URL = process.env.SPLUNK_MCP_URL;
 const MCP_TOKEN = process.env.SPLUNK_MCP_TOKEN;
 const API_URL = process.env.SPLUNK_API_URL; // e.g. https://host:8089
 const API_TOKEN = process.env.SPLUNK_API_TOKEN;
 
 export type TelemetrySource = "mcp" | "rest" | "buffer";
+
+/**
+ * Resolve the MCP endpoint. `SPLUNK_MCP_URL` may be absolute
+ * (https://splunk-host/mcp) or a RELATIVE path (e.g. "/api/mcp" — the app's own
+ * self-hosted MCP-contract route). Relative paths resolve against the incoming
+ * request's public origin first, so a deployed /ops self-calls the exact domain
+ * the visitor used (works behind aliases/proxies), then SPLUNK_PUBLIC_ORIGIN,
+ * then Vercel's injected VERCEL_URL, then localhost for dev.
+ */
+function resolveMcpUrl(origin?: string): string | undefined {
+  const raw = process.env.SPLUNK_MCP_URL;
+  if (!raw) return undefined;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const base =
+    origin ||
+    process.env.SPLUNK_PUBLIC_ORIGIN ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  return base.replace(/\/$/, "") + (raw.startsWith("/") ? raw : `/${raw}`);
+}
 
 /** Build the SPL the agent runs to fetch a window of drop telemetry. */
 export function buildSpl(dropId: string | undefined, windowMin: number): string {
@@ -46,13 +64,15 @@ export interface FetchResult {
 
 export async function fetchTelemetry(
   dropId: string | undefined,
-  windowMin = 15
+  windowMin = 15,
+  origin?: string
 ): Promise<FetchResult> {
   const spl = buildSpl(dropId, windowMin);
 
-  if (MCP_URL) {
+  const mcpUrl = resolveMcpUrl(origin);
+  if (mcpUrl) {
     try {
-      const events = await searchViaMcp(spl);
+      const events = await searchViaMcp(mcpUrl, spl);
       return { events, source: "mcp", spl };
     } catch (err) {
       console.warn("[dropwatch] MCP search failed, falling back:", String(err));
@@ -76,8 +96,8 @@ export async function fetchTelemetry(
  * The MCP server exposes a `run_splunk_search` (a.k.a. run_oneshot_search) tool
  * that takes a `query` and returns result rows. We unwrap rows -> DropEvents.
  */
-async function searchViaMcp(spl: string): Promise<DropEvent[]> {
-  const res = await fetch(MCP_URL!, {
+async function searchViaMcp(mcpUrl: string, spl: string): Promise<DropEvent[]> {
+  const res = await fetch(mcpUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -157,7 +177,7 @@ function rowsToEvents(rows: unknown[]): DropEvent[] {
 }
 
 export function searchMode(): TelemetrySource {
-  if (MCP_URL) return "mcp";
+  if (process.env.SPLUNK_MCP_URL) return "mcp";
   if (API_URL && API_TOKEN) return "rest";
   return "buffer";
 }

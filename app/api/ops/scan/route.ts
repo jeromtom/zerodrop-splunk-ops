@@ -12,6 +12,6 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const dropId = req.nextUrl.searchParams.get("dropId") ?? undefined;
   const windowMin = Number(req.nextUrl.searchParams.get("windowMin") ?? 15);
-  const report = await scan({ dropId, windowMin });
+  const report = await scan({ dropId, windowMin, origin: req.nextUrl.origin });
   return NextResponse.json(report);
 }
