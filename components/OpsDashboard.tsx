@@ -39,6 +39,12 @@ interface ScanReport {
     lastModel: string;
     lastScanMs: number;
     lastLlmLatencyMs: number;
+    totalTokens: number;
+    totalCostUsd: number;
+    avgConfidence: number;
+    lastConfidence: number;
+    lastDrift: number;
+    lastTokens: number;
     sinceIso: string;
   };
   findings: Finding[];
@@ -229,21 +235,24 @@ export function OpsDashboard() {
               <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-500">
                 Agent runtime{" "}
                 <span className="font-mono text-[10px] normal-case text-zinc-600">
-                  self-observability → Splunk (sourcetype dropwatch:agent)
+                  AI agent monitoring · latency · tokens · cost · confidence · drift → Splunk (dropwatch:agent)
                 </span>
               </h2>
               <span className="font-mono text-xs text-zinc-500">
-                {report.agent.scans} scans this session
+                {report.agent.scans} scans · {report.agent.totalTokens.toLocaleString()} tok · $
+                {report.agent.totalCostUsd.toFixed(4)}
               </span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
               {[
                 ["LLM tier", report.agent.lastTier],
                 ["model", report.agent.lastModel],
-                ["LLM latency", `${report.agent.lastLlmLatencyMs} ms`],
-                ["scan time", `${report.agent.lastScanMs} ms`],
-                ["avg scan", `${report.agent.avgScanMs} ms`],
-                ["LLM fallbacks", `${report.agent.llmErrors}/${report.agent.scans}`],
+                ["latency", `${report.agent.lastLlmLatencyMs} ms`],
+                ["tokens", report.agent.lastTokens.toLocaleString()],
+                ["est cost", `$${report.agent.totalCostUsd.toFixed(4)}`],
+                ["confidence", `${Math.round(report.agent.lastConfidence * 100)}%`],
+                ["drift", report.agent.lastDrift.toFixed(2)],
+                ["fallbacks", `${report.agent.llmErrors}/${report.agent.scans}`],
               ].map(([label, val]) => (
                 <div key={String(label)} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
                   <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>

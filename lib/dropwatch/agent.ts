@@ -68,7 +68,8 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
 
   const dropId = opts.dropId ?? events.find((e) => e.dropId)?.dropId;
   const features = summarize(events, dropId ?? "(all)", windowMin);
-  const { findings, tier, llmUsed, model, latencyMs, ok } = await reason(features);
+  const { findings, tier, llmUsed, model, latencyMs, ok, tokensIn, tokensOut, costUsd, confidence } =
+    await reason(features);
   const ranked = sortBySeverity(findings);
   const score = healthScore(ranked);
   const at = new Date().toISOString();
@@ -87,6 +88,10 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
     findingCount: ranked.length,
     topSeverity: ranked[0]?.severity ?? "info",
     healthScore: score,
+    tokensIn,
+    tokensOut,
+    costUsd,
+    confidence,
     dropId,
   }).catch(() => {});
 

@@ -84,6 +84,13 @@ async function main() {
     report.agent ? `tier=${report.agent.lastTier} scanMs=${report.agent.lastScanMs}ms` : "missing"
   );
   check(
+    "agent monitoring tracks cost + confidence + drift",
+    typeof report.agent?.totalCostUsd === "number" &&
+      typeof report.agent?.avgConfidence === "number" &&
+      typeof report.agent?.lastDrift === "number",
+    `cost=${report.agent?.totalCostUsd} conf=${report.agent?.avgConfidence} drift=${report.agent?.lastDrift}`
+  );
+  check(
     "guarantee intact: zero oversell in telemetry",
     !stream.events.some((e) => Number((e.meta as { oversold?: number })?.oversold) > 0)
   );

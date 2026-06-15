@@ -32,6 +32,15 @@ export interface AgentScanObservation {
   findingCount: number;
   topSeverity: string;
   healthScore: number;
+  /** Prompt / completion tokens for this scan's reasoning (0 for the rules tier). */
+  tokensIn: number;
+  tokensOut: number;
+  /** Estimated USD cost of this scan's reasoning (0 for Splunk-hosted / rules). */
+  costUsd: number;
+  /** Self-reported reasoning confidence 0..1 (quality signal). */
+  confidence: number;
+  /** How much the verdict (health + finding count) moved vs the previous scan, 0..1. */
+  drift: number;
   dropId?: string;
 }
 
@@ -47,6 +56,13 @@ export interface AgentRuntime {
   lastModel: string;
   lastScanMs: number;
   lastLlmLatencyMs: number;
+  /** AI agent monitoring: token + cost + quality + drift. */
+  totalTokens: number;
+  totalCostUsd: number;
+  avgConfidence: number;
+  lastConfidence: number;
+  lastDrift: number;
+  lastTokens: number;
   sinceIso: string;
   /** Most-recent observations, newest first (for a sparkline / feed). */
   recent: AgentScanObservation[];
@@ -58,15 +74,30 @@ const g = globalThis as unknown as {
 };
 const store = (g.__dropwatchAgentObs ??= { obs: [], since: new Date().toISOString() });
 
-/** Record one scan's runtime metrics + ship them to Splunk (`dropwatch:agent`). */
-export async function observeScan(o: AgentScanObservation): Promise<void> {
-  store.obs.push(o);
-  if (store.obs.length > MAX) store.obs.splice(0, store.obs.length - MAX);
-  void emitAgentEvent({ event: "agent_scan", ...o }).catch(() => {});
-}
-
 const avg = (xs: number[]): number =>
   xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0;
+const r2 = (x: number): number => Math.round(x * 100) / 100;
+const rUsd = (x: number): number => Math.round(x * 1e6) / 1e6;
+
+/** Record one scan's runtime metrics + ship them to Splunk (`dropwatch:agent`). */
+export async function observeScan(o: Omit<AgentScanObservation, "drift">): Promise<void> {
+  const prev = store.obs[store.obs.length - 1];
+  // Drift = how much the agent's verdict moved scan-to-scan (health + finding count).
+  const drift = prev
+    ? r2(
+        Math.min(
+          1,
+          (Math.abs(o.healthScore - prev.healthScore) / 100 +
+            Math.abs(o.findingCount - prev.findingCount) / Math.max(1, prev.findingCount + 1)) /
+            2
+        )
+      )
+    : 0;
+  const obs: AgentScanObservation = { ...o, drift };
+  store.obs.push(obs);
+  if (store.obs.length > MAX) store.obs.splice(0, store.obs.length - MAX);
+  void emitAgentEvent({ event: "agent_scan", ...obs }).catch(() => {});
+}
 
 /** Snapshot of the agent's own health, for the /ops "Agent runtime" panel. */
 export function agentRuntime(): AgentRuntime {
@@ -83,6 +114,12 @@ export function agentRuntime(): AgentRuntime {
     lastModel: last?.llmModel ?? "—",
     lastScanMs: last?.scanMs ?? 0,
     lastLlmLatencyMs: last?.llmLatencyMs ?? 0,
+    totalTokens: obs.reduce((a, o) => a + (o.tokensIn || 0) + (o.tokensOut || 0), 0),
+    totalCostUsd: rUsd(obs.reduce((a, o) => a + (o.costUsd || 0), 0)),
+    avgConfidence: obs.length ? r2(obs.reduce((a, o) => a + (o.confidence || 0), 0) / obs.length) : 0,
+    lastConfidence: last?.confidence ?? 0,
+    lastDrift: last?.drift ?? 0,
+    lastTokens: (last?.tokensIn ?? 0) + (last?.tokensOut ?? 0),
     sinceIso: store.since,
     recent: obs.slice(-8).reverse(),
   };

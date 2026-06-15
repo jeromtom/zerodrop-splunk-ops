@@ -49,6 +49,58 @@ export interface AgentResult {
   latencyMs: number;
   /** False when an LLM tier was attempted but failed and the agent fell back. */
   ok: boolean;
+  /** Prompt / completion tokens this scan (0 for the rules tier). */
+  tokensIn: number;
+  tokensOut: number;
+  /** Estimated USD cost of this reasoning step (0 for Splunk-hosted / rules). */
+  costUsd: number;
+  /** Self-reported reasoning confidence 0..1 (quality signal for AI agent monitoring). */
+  confidence: number;
+}
+
+interface Usage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+/** Rough $/1M-token estimate. Splunk-hosted models (Foundation-Sec, GPT-OSS) are free. */
+function estCostUsd(model: string, tokensIn: number, tokensOut: number): number {
+  const m = model.toLowerCase();
+  const [ri, ro] =
+    m.includes("foundation-sec") || m.includes("gpt-oss") || m.includes("splunk")
+      ? [0, 0]
+      : m.includes("gpt-4o-mini")
+        ? [0.15, 0.6]
+        : m.includes("gpt-4o")
+          ? [2.5, 10]
+          : [0.15, 0.6];
+  return Math.round(((tokensIn * ri + tokensOut * ro) / 1_000_000) * 1e6) / 1e6;
+}
+
+function build(
+  findings: Finding[],
+  tier: LlmTier,
+  llmUsed: boolean,
+  model: string,
+  latencyMs: number,
+  usage: Usage | null,
+  ok: boolean
+): AgentResult {
+  const tokensIn = usage?.prompt_tokens ?? 0;
+  const tokensOut = usage?.completion_tokens ?? 0;
+  return {
+    findings,
+    tier,
+    llmUsed,
+    model,
+    latencyMs,
+    ok,
+    tokensIn,
+    tokensOut,
+    costUsd: estCostUsd(model, tokensIn, tokensOut),
+    confidence: ok ? (tier === "rules" ? 0.7 : 0.92) : 0.45,
+  };
 }
 
 export async function reason(features: Features): Promise<AgentResult> {
@@ -58,20 +110,20 @@ export async function reason(features: Features): Promise<AgentResult> {
   if (HOSTED_URL) {
     const t0 = Date.now();
     const r = await tryChat(HOSTED_URL, HOSTED_TOKEN, HOSTED_MODEL, userMsg, "hosted-model");
-    if (r) return { findings: r, tier: "hosted-model", llmUsed: true, model: HOSTED_MODEL, latencyMs: Date.now() - t0, ok: true };
+    if (r) return build(r.findings, "hosted-model", true, HOSTED_MODEL, Date.now() - t0, r.usage, true);
     fellBack = true;
   }
   if (AIML_KEY) {
     const t0 = Date.now();
     const r = await tryChat(`${AIML_BASE}/chat/completions`, AIML_KEY, AIML_MODEL, userMsg, "aiml");
-    if (r) return { findings: r, tier: "aiml", llmUsed: true, model: AIML_MODEL, latencyMs: Date.now() - t0, ok: true };
+    if (r) return build(r.findings, "aiml", true, AIML_MODEL, Date.now() - t0, r.usage, true);
     fellBack = true;
   }
   // Deterministic fallback. ok=false only when an LLM tier was tried and failed
   // (a real reliability signal); the zero-key default path is ok=true.
   const t0 = Date.now();
   const findings = rulesEngine(features);
-  return { findings, tier: "rules", llmUsed: false, model: "rules-engine", latencyMs: Date.now() - t0, ok: !fellBack };
+  return build(findings, "rules", false, "rules-engine", Date.now() - t0, null, !fellBack);
 }
 
 async function tryChat(
@@ -80,7 +132,7 @@ async function tryChat(
   model: string,
   userMsg: string,
   source: "hosted-model" | "aiml"
-): Promise<Finding[] | null> {
+): Promise<{ findings: Finding[]; usage: Usage | null } | null> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -105,7 +157,17 @@ async function tryChat(
     const json = await res.json();
     const content = json?.choices?.[0]?.message?.content;
     if (!content) return null;
-    return parseFindings(content, source);
+    const findings = parseFindings(content, source);
+    if (!findings) return null;
+    const u = json?.usage;
+    const usage: Usage | null = u
+      ? {
+          prompt_tokens: Number(u.prompt_tokens) || 0,
+          completion_tokens: Number(u.completion_tokens) || 0,
+          total_tokens: Number(u.total_tokens) || 0,
+        }
+      : null;
+    return { findings, usage };
   } catch (err) {
     console.warn(`[dropwatch] ${source} call failed:`, String(err));
     return null;
