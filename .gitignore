@@ -47,3 +47,7 @@ zerodrop-splunk-ops/
 
 # generated voiceover clips
 audio/
+
+# internal strategy / red-team notes (keep local, do not publish)
+SELF_REVIEW.md
+STRATEGY.md
