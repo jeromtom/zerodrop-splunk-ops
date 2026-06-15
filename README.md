@@ -5,8 +5,8 @@
 ### 🔗 Links
 
 - **🎬 Demo video (2:46):** https://youtu.be/QsFjFh-rE7Y
-- **🌐 Live site:** https://dropwatch.pages.dev (also at https://dropwatch.jeromtom.com, custom domain provisioning)
-- **💧 Join the waitlist / see it live:** https://dropwatch.pages.dev
+- **🤖 Live agent dashboard:** **https://dropwatch.jeromtom.com/ops** — running on Cloudflare Workers, pulling telemetry over the **Splunk MCP Server** path (`telemetry: mcp`) with live LLM reasoning.
+- **🌐 Live site:** https://dropwatch.jeromtom.com
 
 ---
 

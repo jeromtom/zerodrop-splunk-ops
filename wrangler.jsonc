@@ -8,6 +8,7 @@
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
+  "routes": [{ "pattern": "dropwatch.jeromtom.com", "custom_domain": true }],
   "vars": {
     "SPLUNK_MCP_URL": "/api/mcp",
     "SPLUNK_MCP_TOOL": "run_splunk_search"
