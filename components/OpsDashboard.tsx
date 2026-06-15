@@ -160,9 +160,9 @@ export function OpsDashboard() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Drop health</h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              DropWatch pulls telemetry from Splunk and an LLM reasons about anomalies, then
-              recommends ops actions you can apply in one click.
+            <p className="mt-1 max-w-2xl text-sm text-zinc-400">
+              If it lands in Splunk, the agent reads it: DropWatch scores drop health, finds the
+              anomaly, and recommends the ops action you apply in one click.
             </p>
           </div>
           <div className="flex gap-2">
@@ -234,7 +234,7 @@ export function OpsDashboard() {
                       {f.action && f.action.kind !== "none" && !applied[f.id] && (
                         <button
                           onClick={() => apply(f)}
-                          className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-black"
+                          className="shrink-0 whitespace-nowrap rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-black"
                         >
                           {f.action.label}
                         </button>
