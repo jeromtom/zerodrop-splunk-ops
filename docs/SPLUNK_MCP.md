@@ -18,6 +18,39 @@ reasoning fallback. The MCP path is **not claimed to be live on the trial**. The
 "Going LIVE" runbook below flips it to `telemetry: mcp` on any non-trial Splunk
 Enterprise in a few minutes, with no code change — only environment variables.
 
+## Run the MCP path locally, end-to-end (no Splunk account)
+
+So the MCP client path is not just "wired" but **demonstrably executes**, the repo
+ships a local server that implements the **same MCP JSON-RPC contract** as the
+Splunkbase Splunk MCP Server's search tool (`run_splunk_search`). It serves
+synthetic, Splunk-shaped telemetry (the planted stampede + oversell-bot stream)
+over the real MCP wire protocol, so DropWatch's `searchViaMcp()` runs for real.
+
+**One command (self-contained proof):**
+
+```bash
+npm run ops:mcp
+# starts the local MCP server, points the agent at it, runs one scan, and asserts
+# telemetrySource === "mcp". Prints: "PASS: pulled N events through the Splunk MCP
+# Server tool contract (run_splunk_search)".
+```
+
+**Or drive the /ops UI over MCP:**
+
+```bash
+npm run mcp:server                                   # terminal 1 (prints the URL)
+# terminal 2:
+SPLUNK_MCP_URL=http://127.0.0.1:7878/mcp npm run dev # then open /ops, click Re-scan
+```
+
+The `/ops` header now reads `telemetry: mcp`, and the **Telemetry pull path** panel
+highlights *Splunk MCP Server* with the exact SPL that travelled over MCP.
+
+> Honest scope: the local server is a stand-in so the integration is provable
+> without a non-trial Splunk Enterprise. It speaks the real protocol; only the
+> backing store is synthetic. Swap `SPLUNK_MCP_URL` for a real Splunk MCP Server
+> (see "Going LIVE" below) and the identical code path goes live.
+
 ## Why MCP
 
 DropWatch is an *agent*. Its monitoring cycle is:

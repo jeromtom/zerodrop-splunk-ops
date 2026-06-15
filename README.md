@@ -1,6 +1,6 @@
 # DropWatch: agentic ops for oversell-proof flash drops
 
-**Splunk Agentic Ops Hackathon** entry · Track: **Observability ($3,000)** · also targeting **Best Use of Splunk MCP Server ($1,000)**
+**Splunk Agentic Ops Hackathon** entry · Track: **Observability ($3,000)** · cross-cutting **Best of Security ($3,000)** · also targeting **Best Use of Splunk MCP Server ($1,000)**
 
 ### 🔗 Links
 
@@ -59,6 +59,25 @@ whose depth is climbing, or a route whose latency events spiked. **Software team
 ITOps, and NetOps** get the same pull → reason → score → recommend → apply loop
 over their own streams; the drop taxonomy is just the demo payload.
 
+## DropWatch as a security signal (zero false positives, by construction)
+
+Beyond observability, DropWatch is an **abuse-detection engine**. ZeroDrop's core
+guarantee — overselling is *impossible by construction* (every claim is one atomic
+DynamoDB conditional write, no lock, no race) — means an `oversell_reject` event
+**cannot be a bug**. It only fires when a client keeps hammering the claim endpoint
+*after* sellout. Legitimate buyers stop; bots don't. So the reject stream is a
+clean, ground-truth security signal with **no false positives by design**.
+
+The agent pulls that stream out of Splunk, clusters rejects by source subnet, and
+when one `/24` dominates post-sellout rejects it flags an automated checkout-bot
+cluster — then closes the SOC loop: **detect → triage → respond → document**. It
+recommends (and one-click applies) a soft-block / CAPTCHA challenge on the subnet,
+pages on-call via webhook with the reasoning, and writes the action back into Splunk
+as an audit breadcrumb. The same loop generalizes to any abuse signal you can land
+in Splunk: credential-stuffing spikes, scraping bursts, geo/velocity anomalies.
+**Provable correctness in the source system makes the detection substrate itself
+immune to false positives** — a property most security pipelines can only dream of.
+
 ## New in this build
 
 - **Generic z-score anomaly detector:** baseline mean/std per event type, scores
@@ -75,6 +94,12 @@ over their own streams; the drop taxonomy is just the demo payload.
 - **Packaged Splunk app:** `splunk-app/` ships the dashboard plus **scheduled
   detector alerts** that mirror the agent's logic natively in Splunk, so the
   detectors keep running even when the app is offline.
+- **Runnable Splunk MCP path:** a local Splunk-MCP-contract server
+  (`scripts/mcp-server.mts`, `npm run mcp:server`) lets the agent pull telemetry
+  over the real MCP JSON-RPC `run_splunk_search` tool **end-to-end** —
+  `npm run ops:mcp` proves it (`telemetry: mcp`, 400+ events, zero Splunk
+  account). Point `SPLUNK_MCP_URL` at a real Splunk MCP Server and the same path
+  goes live with no code change. (`lib/dropwatch/search.ts`.)
 - **Agent self-observability (AI agent monitoring):** DropWatch instruments its
   **own** reasoning loop. Every scan records which LLM tier fired (Hosted Models /
   AIML / rules), the model, LLM latency, scan time, and fallbacks, ships them to
@@ -109,7 +134,7 @@ but not provisioned on the Splunk Cloud trial.
 | Generic z-score anomaly detector + leading-indicator early warning | live in-app |
 | AI alert webhooks (Slack / PagerDuty) | live in-app (no-op without `ALERT_WEBHOOK_URL`) |
 | Deterministic rules engine (zero-key fallback) | live in-app |
-| **Splunk MCP Server** search path | **wired + documented, not running on the Cloud trial** |
+| **Splunk MCP Server** search path | **runnable end-to-end now** — `npm run ops:mcp` / `npm run mcp:server` exercise the real MCP JSON-RPC `run_splunk_search` contract against a local MCP server (`telemetry: mcp`); point `SPLUNK_MCP_URL` at a real Splunk MCP Server to go live, no code change. Not on the Cloud *trial* (no mgmt port). |
 | **Splunk Hosted Models** reasoning path | **wired + documented, not running on the Cloud trial** |
 
 The MCP and Hosted-Models paths are real code with documented contracts
@@ -144,6 +169,7 @@ no install of the Next app required (uses Node's built-in TS support):
 ```bash
 npm run ops:demo    # synth a drop -> agent detects stampede + oversell-bot
 npm run ops:test    # end-to-end assertions (all green)
+npm run ops:mcp     # agent pulls telemetry over a LIVE (local) Splunk MCP Server
 ```
 
 Sample `ops:demo` output:

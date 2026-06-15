@@ -14,7 +14,9 @@
     "db:init:aws": "node scripts/init-table.mjs",
     "db:seed:aws": "node scripts/init-table.mjs && node scripts/seed.mjs",
     "ops:demo": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-demo.mts",
-    "ops:test": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-test.mts"
+    "ops:test": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-test.mts",
+    "ops:mcp": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-mcp-demo.mts",
+    "mcp:server": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/mcp-server.mts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1068.0",

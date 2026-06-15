@@ -139,7 +139,15 @@ function rowsToEvents(rows: unknown[]): DropEvent[] {
     const raw = row?._raw ?? row?.event ?? row;
     try {
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      const ev = (parsed?.event ?? parsed) as DropEvent;
+      // Accept either the bare DropEvent (what a real Splunk `_raw` contains —
+      // its own `event` field is the event-type *string*) or a HEC-style
+      // envelope `{ event: { ...DropEvent } }`. Only unwrap when the inner
+      // `event` is itself an object, otherwise we'd mistake the type string for
+      // the event and drop every row.
+      const p = parsed as { event?: unknown } | null;
+      const ev = (
+        p && typeof p.event === "object" && p.event !== null ? p.event : p
+      ) as DropEvent;
       if (ev && ev.event && ev.dropId) out.push(ev);
     } catch {
       /* skip unparseable rows */
