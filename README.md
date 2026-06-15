@@ -2,6 +2,12 @@
 
 **Splunk Agentic Ops Hackathon** entry · Track: **Observability ($3,000)** · also targeting **Best Use of Splunk MCP Server ($1,000)**
 
+### 🔗 Links
+
+- **🎬 Demo video (2:46):** https://youtu.be/QsFjFh-rE7Y
+- **🌐 Live site:** https://dropwatch.pages.dev — also at https://dropwatch.jeromtom.com (custom domain provisioning)
+- **💧 Join the waitlist / see it live:** https://dropwatch.pages.dev
+
 DropWatch is an **agentic observability layer** built on top of **ZeroDrop**, an
 oversell-proof flash-drop SaaS. ZeroDrop instruments every hot path (claim,
 hold-create, hold-expiry, oversell-reject, waitlist-add, checkout) and ships
