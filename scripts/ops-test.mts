@@ -9,6 +9,29 @@
 import { synthesize } from "../lib/dropwatch/synth";
 import { clearBuffer, seedBuffer, recent } from "../lib/dropwatch/sink";
 import { scan } from "../lib/dropwatch/agent";
+import type { DropEvent } from "../lib/dropwatch/events";
+
+/**
+ * Build a GRADUAL claim ramp (accelerating but below the hard stampede
+ * threshold) to exercise the leading-indicator / early-warning detector.
+ */
+function rampStream(dropId: string, perMin: number[]): DropEvent[] {
+  const events: DropEvent[] = [];
+  const base = Date.now() - (perMin.length + 1) * 60_000;
+  for (let m = 0; m < perMin.length; m++) {
+    for (let k = 0; k < perMin[m]; k++) {
+      const t = base + m * 60_000 + k * 1500;
+      events.push({
+        time: new Date(t).toISOString(),
+        event: "claim",
+        dropId,
+        ip: `73.1.2.${k % 250}`,
+        position: k,
+      });
+    }
+  }
+  return events;
+}
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -53,6 +76,12 @@ async function main() {
     "guarantee intact: zero oversell in telemetry",
     !stream.events.some((e) => Number((e.meta as { oversold?: number })?.oversold) > 0)
   );
+  // Generic baseline anomaly detector flags the injected rate spike (any type).
+  check(
+    "generic anomaly detector flags rate spike",
+    [...ids].some((id) => id.startsWith("anomaly-")),
+    [...ids].join(",")
+  );
 
   // --- Scenario B: healthy drop is NOT flagged ------------------------------
   clearBuffer();
@@ -62,6 +91,22 @@ async function main() {
   const calmIds = new Set(calmReport.findings.map((f) => f.id));
   check("healthy drop not flagged for stampede", !calmIds.has("stampede"));
   check("healthy drop scores high", calmReport.healthScore >= 90, String(calmReport.healthScore));
+  // Generic anomaly detector must NOT false-positive on the calm baseline.
+  check(
+    "generic anomaly detector quiet on healthy drop",
+    ![...calmIds].some((id) => id.startsWith("anomaly-")),
+    [...calmIds].join(",")
+  );
+
+  // --- Scenario C: leading indicator fires BEFORE the hard stampede ---------
+  clearBuffer();
+  const dropId = "ramp-drop";
+  // Accelerating ramp, peak 14/min — below the hard stampede threshold (>=20).
+  seedBuffer(rampStream(dropId, [2, 4, 7, 11, 14]));
+  const rampReport = await scan({ dropId });
+  const rampIds = new Set(rampReport.findings.map((f) => f.id));
+  check("leading indicator: stampede-forming detected", rampIds.has("stampede-forming"), [...rampIds].join(","));
+  check("leading indicator fires before hard stampede", rampIds.has("stampede-forming") && !rampIds.has("stampede"));
 
   console.log(`\n${failures === 0 ? "ALL TESTS PASSED" : failures + " TEST(S) FAILED"}\n`);
   process.exit(failures === 0 ? 0 : 1);

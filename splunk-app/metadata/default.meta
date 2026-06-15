@@ -1,0 +1,21 @@
+# DropWatch app object permissions.
+#
+# Export the dashboard and scheduled detector alerts system-wide so they are
+# visible and runnable outside the app context, and readable by all roles.
+
+[]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views]
+export = system
+access = read : [ * ], write : [ admin, power ]
+
+[savedsearches]
+export = system
+access = read : [ * ], write : [ admin, power ]
+
+# Pin the dashboard as the app's default view.
+[views/dropwatch]
+export = system
+access = read : [ * ], write : [ admin, power ]

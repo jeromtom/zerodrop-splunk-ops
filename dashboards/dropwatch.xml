@@ -1,138 +1,351 @@
 <dashboard version="1.1" theme="dark">
-  <label>DropWatch — ZeroDrop Flash-Drop Health</label>
+  <label>DropWatch - ZeroDrop Flash-Drop Operations</label>
   <description>
-    Agentic observability for ZeroDrop. Telemetry arrives via HEC
-    (sourcetype zerodrop:telemetry, index zerodrop). The DropWatch agent runs
-    these same searches via the Splunk MCP Server to reason about drop health.
+    Agentic observability for ZeroDrop flash drops. Telemetry arrives via HEC
+    (index=zerodrop sourcetype=zerodrop:telemetry). Events: claim, hold_create,
+    hold_expiry, oversell_reject, waitlist_add, checkout, sim_summary. The DropWatch
+    agent runs these same searches through the Splunk MCP Server to reason about
+    drop health, detect stampedes, and fingerprint checkout bots.
     Import: Dashboards &gt; Create New Dashboard &gt; Classic / Source &gt; paste this XML.
   </description>
 
+  <!-- ================= INPUTS ================= -->
   <fieldset submitButton="false" autoRun="true">
     <input type="time" token="tr">
       <label>Time range</label>
       <default>
-        <earliest>-30m</earliest>
+        <earliest>-60m</earliest>
         <latest>now</latest>
       </default>
     </input>
-    <input type="text" token="drop">
-      <label>Drop ID (blank = all)</label>
+    <input type="dropdown" token="drop" searchWhenChanged="true">
+      <label>Drop</label>
+      <choice value="">All drops</choice>
       <default></default>
+      <prefix>dropId="</prefix>
+      <suffix>"</suffix>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>dropId</fieldForValue>
+      <search>
+        <query>index=zerodrop sourcetype=zerodrop:telemetry
+| stats count latest(dropName) as dropName by dropId
+| eval label=coalesce(dropName,dropId)." (".dropId.")"
+| sort - count</query>
+        <earliest>$tr.earliest$</earliest>
+        <latest>$tr.latest$</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="span" searchWhenChanged="true">
+      <label>Trend granularity</label>
+      <choice value="30s">30 seconds</choice>
+      <choice value="1m">1 minute</choice>
+      <choice value="5m">5 minutes</choice>
+      <default>1m</default>
+      <initialValue>1m</initialValue>
     </input>
   </fieldset>
 
-  <!-- KPI row -->
+  <!-- ================= KPI ROW ================= -->
   <row>
     <panel>
-      <title>Units claimed</title>
+      <title>Total telemetry events</title>
       <single>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=claim $drop:dropId$ | stats count</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| stats count</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="colorMode">block</option>
-        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="rangeColors">["0x4f8df5","0x4f8df5"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Oversold units (guarantee = 0)</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=sim_summary
+| stats sum('meta.oversold') as oversold
+| eval oversold=coalesce(oversold,0)</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[0,0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Drop health (claim:reject ratio)</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ (event=claim OR event=oversell_reject)
+| stats count(eval(event="claim")) as claims count(eval(event="oversell_reject")) as rejects
+| eval health=round(claims/(claims+rejects)*100,1)
+| fields health</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="unit">%</option>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[60,85]</option>
+        <option name="rangeColors">["0xdc4e41","0xf8be34","0x53a051"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Peak claims / min</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=claim
+| timechart span=1m count as cpm
+| stats max(cpm) as peak</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[60,120]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
       </single>
     </panel>
     <panel>
       <title>Oversell-reject attempts</title>
       <single>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=oversell_reject $drop:dropId$ | stats count</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=oversell_reject
+| stats count</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="colorMode">block</option>
-        <option name="rangeColors">["0xf8be34","0xdc4e41"]</option>
         <option name="rangeValues">[10,50]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
         <option name="useColors">1</option>
+        <option name="drilldown">none</option>
       </single>
     </panel>
     <panel>
-      <title>Hold expiries</title>
+      <title>Checkouts (revenue)</title>
       <single>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=hold_expiry $drop:dropId$ | stats count</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
-        </search>
-      </single>
-    </panel>
-    <panel>
-      <title>Checkouts (revenue events)</title>
-      <single>
-        <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=checkout $drop:dropId$ | stats count</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=checkout
+| stats count</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="colorMode">block</option>
         <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
       </single>
     </panel>
   </row>
 
-  <!-- Stampede onset -->
+  <!-- ================= CLAIM RATE + BASELINE ================= -->
   <row>
     <panel>
-      <title>Claim rate / min — stampede onset</title>
+      <title>Claim rate / min with rolling baseline - stampede onset</title>
       <chart>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=claim $drop:dropId$ | timechart span=1m count as claims_per_min</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=claim
+| timechart span=$span$ count as claims_per_min
+| eval baseline=null()
+| streamstats window=5 current=f avg(claims_per_min) as baseline
+| eval baseline=round(baseline,1)
+| eval surge_flag=if(claims_per_min &gt; 2*baseline AND baseline&gt;0, claims_per_min, null())</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="charting.chart">column</option>
-        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"claims_per_min":"0x4f8df5","baseline":"0xf8be34","surge_flag":"0xdc4e41"}</option>
+        <option name="charting.chart.overlayFields">baseline</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Claims per interval</option>
+        <drilldown>
+          <link target="_blank">search?q=search index%3Dzerodrop sourcetype%3Dzerodrop%3Atelemetry $drop$ event%3Dclaim&amp;earliest=$tr.earliest$&amp;latest=$tr.latest$</link>
+        </drilldown>
       </chart>
     </panel>
     <panel>
-      <title>Event mix over time</title>
+      <title>Events by type over time - service overview</title>
       <chart>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop:dropId$ | timechart span=1m count by event</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| timechart span=$span$ count by event</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="charting.chart">area</option>
         <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.axisTitleY.text">Event count</option>
       </chart>
     </panel>
   </row>
 
-  <!-- Bot detection -->
+  <!-- ================= BOT / SUBNET DETECTION ================= -->
   <row>
     <panel>
-      <title>Oversell-reject attempts by /24 subnet — bot clusters</title>
+      <title>Oversell-reject by /24 subnet - bot cluster fingerprinting</title>
       <table>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry event=oversell_reject $drop:dropId$
-| rex field=ip "(?&lt;subnet&gt;\d+\.\d+\.\d+)\.\d+"
-| stats count as rejects dc(ip) as distinct_ips by subnet
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=oversell_reject
+| eval subnet=replace(ip,"(\d+\.\d+\.\d+)\.\d+","\1.0/24")
+| stats count as rejects dc(ip) as hosts dc(buyer) as buyers
+        earliest(_time) as first_seen latest(_time) as last_seen by subnet
+| eval window_s=round(last_seen-first_seen,0)
+| eval rate_per_min=if(window_s&gt;0, round(rejects/(window_s/60),1), rejects)
+| eval verdict=case(rejects&gt;=20 AND hosts&lt;=12, "LIKELY BOT CLUSTER",
+                    rejects&gt;=8, "SUSPICIOUS", true(), "normal")
 | sort - rejects
-| eval bot_signal=if(rejects&gt;=10 AND distinct_ips&gt;=3,"LIKELY BOT CLUSTER","")</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+| fieldformat first_seen=strftime(first_seen,"%H:%M:%S")
+| fieldformat last_seen=strftime(last_seen,"%H:%M:%S")
+| table subnet rejects hosts buyers rate_per_min first_seen last_seen verdict</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
+        <option name="drilldown">cell</option>
+        <option name="count">10</option>
+        <format type="color" field="verdict">
+          <colorPalette type="map">{"LIKELY BOT CLUSTER":#dc4e41,"SUSPICIOUS":#f8be34,"normal":#53a051}</colorPalette>
+        </format>
+        <format type="number" field="rejects">
+          <option name="unit"> </option>
+        </format>
+        <drilldown>
+          <set token="sel_subnet">$row.subnet$</set>
+        </drilldown>
       </table>
     </panel>
     <panel>
-      <title>Hold-expiry storm (abandonment)</title>
+      <title>Top reject source IPs</title>
+      <table>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=oversell_reject
+| top limit=10 ip
+| rename count as rejects percent as pct_of_rejects</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+        <format type="color" field="pct_of_rejects">
+          <colorPalette type="minMidMax" maxColor="#dc4e41" midColor="#f8be34" minColor="#1e1e1e"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <!-- ================= HOLD STORM + CONVERSION ================= -->
+  <row>
+    <panel>
+      <title>Hold-create vs hold-expiry - abandonment storm detection</title>
       <chart>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry (event=hold_create OR event=hold_expiry) $drop:dropId$ | timechart span=1m count by event</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ (event=hold_create OR event=hold_expiry)
+| timechart span=$span$ count by event
+| eval expiry_ratio=round('hold_expiry'/(coalesce('hold_create',0)+'hold_expiry')*100,0)</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
         <option name="charting.chart">line</option>
+        <option name="charting.fieldColors">{"hold_create":"0x53a051","hold_expiry":"0xdc4e41","expiry_ratio":"0xf8be34"}</option>
+        <option name="charting.axisY2.enabled">1</option>
+        <option name="charting.chart.overlayFields">expiry_ratio</option>
+        <option name="charting.axisTitleY.text">Holds</option>
+        <option name="charting.axisTitleY2.text">Expiry ratio %</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Funnel - claims to waitlist to checkout</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$
+        (event=claim OR event=waitlist_add OR event=checkout)
+| stats count by event
+| eval order=case(event="claim",1,event="waitlist_add",2,event="checkout",3,true(),9)
+| sort order
+| rename event as stage</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.fieldColors">{"count":"0x4f8df5"}</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.axisTitleX.text">Events</option>
       </chart>
     </panel>
   </row>
 
-  <!-- Raw feed -->
+  <!-- ================= WAITLIST vs CHECKOUT CONVERSION OVER TIME ================= -->
   <row>
     <panel>
-      <title>Live telemetry feed</title>
+      <title>Waitlist adds vs checkouts over time - demand conversion</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ (event=waitlist_add OR event=checkout)
+| timechart span=$span$ count by event</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.fieldColors">{"waitlist_add":"0xf8be34","checkout":"0x53a051"}</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.axisTitleY.text">Count</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Write latency p50 / p95 (ms) - backend pressure</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ latencyMs=*
+| timechart span=$span$ perc50(latencyMs) as p50 perc95(latencyMs) as p95 max(latencyMs) as max</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.fieldColors">{"p50":"0x53a051","p95":"0xf8be34","max":"0xdc4e41"}</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.axisTitleY.text">Latency (ms)</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ================= LIVE FEED ================= -->
+  <row>
+    <panel>
+      <title>Live telemetry feed (filtered by clicked subnet)</title>
+      <input type="text" token="sel_subnet" searchWhenChanged="true">
+        <label>Subnet filter (click a row above, or type e.g. 10.66.6)</label>
+        <default></default>
+      </input>
       <table>
         <search>
-          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop:dropId$
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| eval subnet=replace(ip,"(\d+\.\d+\.\d+)\.\d+","\1")
+| search subnet="*$sel_subnet$*" OR isnull(ip)
+| eval latencyMs=if(isnull(latencyMs),"-",latencyMs)
 | table _time event dropName ip position buyer latencyMs
-| sort - _time | head 100</query>
-          <earliest>$tr.earliest$</earliest><latest>$tr.latest$</latest>
+| sort - _time
+| head 100</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
         </search>
+        <option name="drilldown">none</option>
+        <option name="count">20</option>
+        <format type="color" field="event">
+          <colorPalette type="map">{"oversell_reject":#dc4e41,"hold_expiry":#f8be34,"claim":#53a051,"checkout":#4f8df5,"waitlist_add":#8c5fd9,"hold_create":#5fb0d9}</colorPalette>
+        </format>
       </table>
     </panel>
   </row>

@@ -18,6 +18,7 @@ import {
   summarize,
 } from "./analyze";
 import { type LlmTier, reason } from "./llm";
+import { notifyScan } from "./notify";
 import { fetchTelemetry, type TelemetrySource } from "./search";
 import type { DropEvent } from "./events";
 
@@ -66,7 +67,7 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
   const { findings, tier, llmUsed } = await reason(features);
   const ranked = sortBySeverity(findings);
 
-  return {
+  const report: ScanReport = {
     dropId,
     dropName: features.dropName,
     generatedAt: new Date().toISOString(),
@@ -80,4 +81,12 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
     healthScore: healthScore(ranked),
     eventCount: events.length,
   };
+
+  // Automate the operational response: if this scan surfaced a high/critical
+  // finding or drop-health fell below threshold, page ops via the alert
+  // webhook. Awaited-but-caught + internally no-throw, so it can never break a
+  // scan and no-ops cleanly when ALERT_WEBHOOK_URL is unset (e.g. tests/CI).
+  await notifyScan(report).catch(() => {});
+
+  return report;
 }

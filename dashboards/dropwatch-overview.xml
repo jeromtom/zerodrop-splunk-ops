@@ -1,0 +1,236 @@
+<dashboard version="1.1" theme="dark">
+  <label>DropWatch - Observability Overview</label>
+  <description>
+    Single-screen health summary for ZeroDrop flash drops, designed to read like a
+    general service-observability board: golden-signal KPIs, throughput, error rate,
+    latency, and a per-drop scorecard. Backed by index=zerodrop
+    sourcetype=zerodrop:telemetry. Pairs with the operational DropWatch dashboard.
+  </description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="tr">
+      <label>Time range</label>
+      <default>
+        <earliest>-60m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="drop" searchWhenChanged="true">
+      <label>Drop</label>
+      <choice value="">All drops</choice>
+      <default></default>
+      <prefix>dropId="</prefix>
+      <suffix>"</suffix>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>dropId</fieldForValue>
+      <search>
+        <query>index=zerodrop sourcetype=zerodrop:telemetry
+| stats count latest(dropName) as dropName by dropId
+| eval label=coalesce(dropName,dropId)
+| sort - count</query>
+        <earliest>$tr.earliest$</earliest>
+        <latest>$tr.latest$</latest>
+      </search>
+    </input>
+  </fieldset>
+
+  <!-- ================= GOLDEN SIGNALS ================= -->
+  <row>
+    <panel>
+      <title>Throughput - events / min (trend)</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| timechart span=1m count
+| stats avg(count) as rpm
+| eval rpm=round(rpm,1)</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">none</option>
+        <option name="numberPrecision">0.0</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x4f8df5","0x4f8df5"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Error rate - reject share of attempts</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ (event=claim OR event=oversell_reject)
+| stats count(eval(event="oversell_reject")) as rejects count as attempts
+| eval err=round(rejects/attempts*100,1)
+| fields err</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="unit">%</option>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[5,20]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Saturation - peak claims / min</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=claim
+| timechart span=1m count as cpm
+| stats max(cpm) as peak</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[60,120]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Latency - p95 write (ms)</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ latencyMs=*
+| stats perc95(latencyMs) as p95
+| eval p95=round(p95,0)</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="unit">ms</option>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[50,90]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Integrity - oversold units</title>
+      <single>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=sim_summary
+| stats sum('meta.oversold') as oversold
+| eval oversold=coalesce(oversold,0)</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="rangeValues">[0,0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- ================= TRAFFIC + ERROR OVER TIME ================= -->
+  <row>
+    <panel>
+      <title>Total throughput over time</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| timechart span=1m count as events_per_min</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.fieldColors">{"events_per_min":"0x4f8df5"}</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.axisTitleY.text">Events / min</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Reject error rate over time (%)</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ (event=claim OR event=oversell_reject)
+| timechart span=1m count(eval(event="oversell_reject")) as rejects count as attempts
+| eval error_rate=round(rejects/attempts*100,1)
+| fields _time error_rate</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.fieldColors">{"error_rate":"0xdc4e41"}</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.axisTitleY.text">Error rate %</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ================= PER-DROP SCORECARD ================= -->
+  <row>
+    <panel>
+      <title>Per-drop scorecard</title>
+      <table>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| stats count(eval(event="claim")) as claims
+        count(eval(event="oversell_reject")) as rejects
+        count(eval(event="checkout")) as checkouts
+        count(eval(event="waitlist_add")) as waitlist
+        count(eval(event="hold_expiry")) as expiries
+        dc(ip) as uniq_ips
+        latest(dropName) as drop by dropId
+| eval reject_rate=round(rejects/(claims+rejects)*100,1)."%"
+| eval conversion=round(checkouts/claims*100,1)."%"
+| eval status=case(rejects&gt;=50,"WATCH", rejects&gt;=10,"ELEVATED", true(),"healthy")
+| table drop claims rejects reject_rate checkouts conversion waitlist expiries uniq_ips status
+| sort - claims</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">15</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"WATCH":#dc4e41,"ELEVATED":#f8be34,"healthy":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <!-- ================= EVENT MIX + INCIDENT LOG ================= -->
+  <row>
+    <panel>
+      <title>Event mix (share of telemetry)</title>
+      <chart>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event!=sim_summary
+| stats count by event
+| sort - count</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Detected signals - agent watchlist</title>
+      <table>
+        <search>
+          <query>index=zerodrop sourcetype=zerodrop:telemetry $drop$ event=oversell_reject
+| eval subnet=replace(ip,"(\d+\.\d+\.\d+)\.\d+","\1.0/24")
+| stats count as rejects dc(ip) as hosts values(dropId) as dropId by subnet
+| where rejects&gt;=8
+| eval signal=if(rejects&gt;=20 AND hosts&lt;=12,"bot-cluster","reject-spike")
+| eval recommendation=if(signal="bot-cluster","rate-limit / challenge subnet","monitor")
+| table subnet dropId rejects hosts signal recommendation
+| sort - rejects</query>
+          <earliest>$tr.earliest$</earliest>
+          <latest>$tr.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+        <format type="color" field="signal">
+          <colorPalette type="map">{"bot-cluster":#dc4e41,"reject-spike":#f8be34}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</dashboard>

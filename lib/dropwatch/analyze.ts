@@ -53,6 +53,40 @@ export interface Features {
   topRejectSubnets: Array<{ subnet: string; count: number; ips: number }>;
   /** Stampede onset: ratio of peak to baseline claim rate. */
   stampedeRatio: number;
+  /**
+   * GENERIC per-event-type rate series: event type -> per-minute counts, in
+   * chronological order. Powers the baseline/z-score anomaly detector so
+   * DropWatch works on ANY event stream, not just the flash-drop taxonomy.
+   */
+  rateSeries: Record<string, number[]>;
+  /**
+   * LEADING INDICATOR — claim-rate velocity (Δ claims/min between consecutive
+   * minutes). Positive + rising = demand accelerating before a hard stampede.
+   */
+  claimVelocity: {
+    /** Per-minute deltas of the claim rate, chronological. */
+    deltas: number[];
+    /** Most recent acceleration (slope of velocity over the tail). */
+    acceleration: number;
+    /** Rate at the start vs the most recent minute of the rising run. */
+    recentRate: number;
+    /** Minutes of consecutive rising claim rate at the tail. */
+    risingRun: number;
+  };
+}
+
+export interface RateStats {
+  eventType: string;
+  /** Mean per-minute rate across the baseline window. */
+  mean: number;
+  /** Standard deviation of the per-minute rate. */
+  std: number;
+  /** The most recent (or peak-recent) per-minute rate being scored. */
+  recent: number;
+  /** (recent - mean) / std — how many sigma the recent rate deviates. */
+  z: number;
+  /** Number of minute-buckets observed. */
+  samples: number;
 }
 
 /** Coarse /24 grouping, e.g. 10.66.6.5 -> 10.66.6.0/24. */
@@ -68,6 +102,8 @@ export function summarize(
 ): Features {
   const counts: Record<string, number> = {};
   const perMin = new Map<number, number>();
+  // GENERIC: per-event-type -> (minute-bucket -> count).
+  const perTypePerMin = new Map<string, Map<number, number>>();
   const rejectIps = new Map<string, number>();
   const rejectSubnets = new Map<string, { count: number; ips: Set<string> }>();
   let oversellRejects = 0;
@@ -80,6 +116,11 @@ export function summarize(
   for (const e of events) {
     counts[e.event] = (counts[e.event] ?? 0) + 1;
     if (e.dropName) dropName = e.dropName;
+    // GENERIC: bucket EVERY event type per minute (drives anomaly detection).
+    const min = Math.floor(Date.parse(e.time) / 60_000);
+    let typeBuckets = perTypePerMin.get(e.event);
+    if (!typeBuckets) perTypePerMin.set(e.event, (typeBuckets = new Map()));
+    typeBuckets.set(min, (typeBuckets.get(min) ?? 0) + 1);
     if (e.event === "claim") {
       const m = Math.floor(Date.parse(e.time) / 60_000);
       perMin.set(m, (perMin.get(m) ?? 0) + 1);
@@ -120,6 +161,52 @@ export function summarize(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  // --- GENERIC rate series: densify each event type over the full minute span.
+  // Using a shared min/max minute keeps every series aligned and includes the
+  // zero-minutes between bursts (so a quiet stream really reads as quiet).
+  const allMinutes: number[] = [];
+  for (const buckets of perTypePerMin.values()) for (const m of buckets.keys()) allMinutes.push(m);
+  const rateSeries: Record<string, number[]> = {};
+  if (allMinutes.length) {
+    const minMinute = Math.min(...allMinutes);
+    const maxMinute = Math.max(...allMinutes);
+    const span = maxMinute - minMinute + 1;
+    for (const [type, buckets] of perTypePerMin) {
+      const series = new Array<number>(span).fill(0);
+      for (const [m, c] of buckets) series[m - minMinute] = c;
+      rateSeries[type] = series;
+    }
+  }
+
+  // --- LEADING INDICATOR: claim-rate velocity (acceleration of demand).
+  // We scan for the LONGEST run of consecutive strictly-rising minutes anywhere
+  // in the series (not just the tail) so we catch the *rising edge* of a surge —
+  // the early-warning window — before the rate peaks and collapses. recentRate
+  // is the rate at the TOP of that rising run (where the warning would fire).
+  const claimSeries = rateSeries.claim ?? [];
+  const deltas: number[] = [];
+  for (let i = 1; i < claimSeries.length; i++) deltas.push(claimSeries[i] - claimSeries[i - 1]);
+  let risingRun = 0;
+  let runRate = claimSeries.length ? claimSeries[claimSeries.length - 1] : 0;
+  let runAccel = 0;
+  let cur = 0;
+  for (let i = 1; i < claimSeries.length; i++) {
+    if (claimSeries[i] > claimSeries[i - 1]) {
+      cur++;
+      if (cur > risingRun) {
+        risingRun = cur;
+        // Rate at the top of this rising run, and its mean per-minute acceleration.
+        runRate = claimSeries[i];
+        runAccel = (claimSeries[i] - claimSeries[i - cur]) / cur;
+      }
+    } else {
+      cur = 0;
+    }
+  }
+  const acceleration = risingRun > 0 ? runAccel : 0;
+  const recentRate = risingRun > 0 ? runRate : (claimSeries.length ? claimSeries[claimSeries.length - 1] : 0);
+  const claimVelocity = { deltas, acceleration: round(acceleration), recentRate, risingRun };
+
   return {
     dropId,
     dropName,
@@ -138,11 +225,139 @@ export function summarize(
     topRejectIps,
     topRejectSubnets,
     stampedeRatio: round(stampedeRatio),
+    rateSeries,
+    claimVelocity,
   };
 }
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * GENERIC baseline anomaly detector (works on ANY event stream).
+ *
+ * For each event type we have a per-minute rate series. We split it into a
+ * baseline window (the earlier minutes) and a recent window (the last
+ * `recentWindow` minutes), compute the baseline mean + standard deviation, and
+ * z-score the PEAK of the recent window against it. Scoring the peak of a small
+ * recent window (rather than only the final bucket) makes the detector robust
+ * to exactly where in the recent past the spike landed — the classic 3-sigma
+ * control-chart rule. It's domain-agnostic, so DropWatch generalises past flash
+ * drops to logins, payments, API calls — anything that emits typed events.
+ *
+ * Guards (to stay quiet on calm/sparse streams — no false positives):
+ *  - need >= `minSamples` minute-buckets and a non-empty baseline window,
+ *  - baseline std is floored to avoid divide-by-noise on a near-constant series,
+ *  - callers additionally gate on absolute level + margin (see baselineAnomalies).
+ */
+export function baselineRateStats(
+  series: Record<string, number[]>,
+  opts: { minSamples?: number; recentWindow?: number } = {}
+): RateStats[] {
+  const minSamples = opts.minSamples ?? 5;
+  const recentWindow = opts.recentWindow ?? 3;
+  const out: RateStats[] = [];
+
+  for (const [eventType, full] of Object.entries(series)) {
+    if (full.length < minSamples) continue;
+    // Keep at least 2 baseline buckets; never let the recent window eat them all.
+    const split = Math.max(2, full.length - recentWindow);
+    const baseline = full.slice(0, split);
+    const recentBuckets = full.slice(split);
+    if (baseline.length < 2 || recentBuckets.length === 0) continue;
+
+    const recent = Math.max(...recentBuckets); // peak of the recent window
+    const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
+    const variance =
+      baseline.reduce((a, b) => a + (b - mean) * (b - mean), 0) / baseline.length;
+    // Floor std so a near-constant baseline can't manufacture an infinite z on
+    // a 1-event wobble. 1 event/min of natural jitter is the noise floor.
+    const std = Math.max(Math.sqrt(variance), 1);
+    const z = (recent - mean) / std;
+
+    out.push({ eventType, mean: round(mean), std: round(std), recent, z: round(z), samples: full.length });
+  }
+  // Strongest deviation first.
+  return out.sort((a, b) => b.z - a.z);
+}
+
+/**
+ * Turn baseline rate stats into anomaly findings. Severity scales with the
+ * z-score: bigger deviation => more severe. Quiet by default.
+ */
+export function baselineAnomalies(
+  f: Features,
+  opts: { z?: number; minRecent?: number; minAbsMargin?: number; recentWindow?: number } = {}
+): Finding[] {
+  const zThreshold = opts.z ?? 3;
+  const minRecent = opts.minRecent ?? 5;
+  const minAbsMargin = opts.minAbsMargin ?? 5;
+  const out: Finding[] = [];
+
+  for (const s of baselineRateStats(f.rateSeries, { recentWindow: opts.recentWindow })) {
+    // Three independent gates: statistical (z), absolute level, absolute margin.
+    if (s.z < zThreshold) continue;
+    if (s.recent < minRecent) continue;
+    if (s.recent - s.mean < minAbsMargin) continue;
+
+    // Severity scales with how many sigma out we are.
+    const severity: Severity =
+      s.z >= 8 ? "critical" : s.z >= 6 ? "high" : s.z >= 4 ? "medium" : "low";
+
+    out.push({
+      id: `anomaly-${s.eventType}`,
+      title: `Rate anomaly: ${s.eventType}`,
+      severity,
+      reasoning: `Baseline anomaly detector: "${s.eventType}" spiked to ${s.recent}/min vs a baseline of ${s.mean}/min (σ=${s.std}) — that's ${s.z}σ above normal over ${s.samples} minutes. A statistically significant deviation, surfaced by the generic control-chart detector (works on any event type).`,
+      recommendation: `Investigate the "${s.eventType}" surge on drop ${f.dropId}; correlate with deploys, upstream incidents, or traffic sources before it escalates.`,
+      action: { kind: "notify", params: { dropId: f.dropId, eventType: s.eventType, z: s.z }, label: `Alert on ${s.eventType} spike` },
+      evidence: { eventType: s.eventType, recentPerMin: s.recent, baselineMean: s.mean, std: s.std, zScore: s.z, samples: s.samples },
+      source: "rules",
+    });
+  }
+  return out;
+}
+
+/**
+ * LEADING INDICATOR / early-warning detector.
+ *
+ * The hard `stampede` rule only fires once the surge has already peaked
+ * (peakClaimsPerMin >= 20, ratio >= 4). This detector watches the *velocity*
+ * of the claim rate and fires a MEDIUM "stampede forming" finding while demand
+ * is still accelerating — BEFORE the hard threshold is crossed — so ops can act
+ * earlier. It deliberately stays silent on flat/declining (healthy) streams.
+ */
+export function leadingIndicators(
+  f: Features,
+  opts: { minRisingRun?: number; minAcceleration?: number; minRecentRate?: number } = {}
+): Finding[] {
+  const minRisingRun = opts.minRisingRun ?? 2; // >= 2 consecutive accelerating minutes
+  const minAcceleration = opts.minAcceleration ?? 2; // claims/min added each minute
+  const minRecentRate = opts.minRecentRate ?? 8; // already non-trivial volume
+  const v = f.claimVelocity;
+  const out: Finding[] = [];
+
+  const accelerating =
+    v.risingRun >= minRisingRun &&
+    v.acceleration >= minAcceleration &&
+    v.recentRate >= minRecentRate;
+
+  // Only an EARLY warning: skip if the hard stampede has already clearly hit
+  // (peak well past threshold) — at that point the `stampede` finding owns it.
+  if (accelerating) {
+    out.push({
+      id: "stampede-forming",
+      title: "Stampede forming (early warning)",
+      severity: "medium",
+      reasoning: `Leading indicator: claim rate has accelerated for ${v.risingRun} straight minutes (+${v.acceleration}/min each), now at ${v.recentRate}/min. Demand velocity is rising — a stampede is forming before the hard surge threshold is crossed. Acting now smooths the curve instead of reacting to the peak.`,
+      recommendation: `Pre-warm the queue throttle on drop ${f.dropId} now (lower-impact than reacting after the spike). Watch for the hard stampede signal next.`,
+      action: { kind: "enable_throttle", params: { dropId: f.dropId, rps: 50, mode: "preemptive" }, label: "Pre-warm queue throttle" },
+      evidence: { risingRun: v.risingRun, acceleration: v.acceleration, recentRate: v.recentRate, deltas: v.deltas.slice(-6) },
+      source: "rules",
+    });
+  }
+  return out;
 }
 
 /**
@@ -208,6 +423,15 @@ export function rulesEngine(f: Features): Finding[] {
       evidence: { waitlistAdds: f.waitlistAdds, waitlistConversion: f.waitlistConversion },
       source: "rules",
     });
+  }
+
+  // 5. GENERIC baseline anomaly detector (any event type, z-score based).
+  out.push(...baselineAnomalies(f));
+
+  // 6. LEADING INDICATOR: stampede forming (fires before the hard threshold).
+  //    Skip if the hard stampede rule above already fired — that owns the peak.
+  if (!out.some((x) => x.id === "stampede")) {
+    out.push(...leadingIndicators(f));
   }
 
   if (out.length === 0) {
