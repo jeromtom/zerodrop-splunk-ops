@@ -189,8 +189,8 @@ export default function LandingPage() {
             <a className="btn primary" href="/ops">
               ▸ Open the live dashboard
             </a>
-            <a className="btn" href="https://youtu.be/QsFjFh-rE7Y" target="_blank" rel="noopener">
-              Watch the 2:46 demo
+            <a className="btn" href="https://youtu.be/mUfKYCnnaME" target="_blank" rel="noopener">
+              Watch the 2:35 demo
             </a>
             <a className="btn" href="#waitlist">
               Request access
@@ -222,7 +222,7 @@ export default function LandingPage() {
             </div>
             <div className="frame">
               <iframe
-                src="https://www.youtube.com/embed/QsFjFh-rE7Y"
+                src="https://www.youtube.com/embed/mUfKYCnnaME"
                 title="DropWatch demo"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
@@ -413,7 +413,7 @@ export default function LandingPage() {
 
         <footer>
           Splunk Agentic Ops Hackathon · Observability ·{" "}
-          <a href="https://youtu.be/QsFjFh-rE7Y">demo</a> ·{" "}
+          <a href="https://youtu.be/mUfKYCnnaME">demo</a> ·{" "}
           <a href="https://devpost.com/software/dropwatch-qnpgy6">Devpost</a> ·{" "}
           <a href="https://github.com/jeromtom/zerodrop-splunk-ops">source</a>
           <br />
