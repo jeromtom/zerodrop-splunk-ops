@@ -12,6 +12,12 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const dropId = req.nextUrl.searchParams.get("dropId") ?? undefined;
   const windowMin = Number(req.nextUrl.searchParams.get("windowMin") ?? 15);
-  const report = await scan({ dropId, windowMin, origin: req.nextUrl.origin });
+  // Remediations the operator has applied this session (recovery-loop hint, so
+  // it works even when apply + scan land on different serverless isolates).
+  const appliedKinds = (req.nextUrl.searchParams.get("applied") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const report = await scan({ dropId, windowMin, origin: req.nextUrl.origin, appliedKinds });
   return NextResponse.json(report);
 }

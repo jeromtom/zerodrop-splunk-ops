@@ -190,6 +190,20 @@ async function main() {
     after.healthScore > before.healthScore,
     `before=${before.healthScore} after=${after.healthScore}`
   );
+
+  // Stateless hint path: on serverless runtimes the apply and the scan can land
+  // on different isolates, so the in-memory log is empty. The scan's appliedKinds
+  // param carries the operator's session remediations and still drives recovery.
+  clearActions();
+  clearBuffer();
+  seedBuffer(botStream("hint-drop"));
+  const hinted = await scan({ dropId: "hint-drop", appliedKinds: ["flag_ip_cluster"] });
+  const botHint = hinted.findings.find((f) => f.id === "oversell-bot");
+  check(
+    "recovery: stateless hint mitigates the bot finding",
+    botHint?.severity === "info" && /mitigated/i.test(botHint?.title ?? ""),
+    `severity=${botHint?.severity} title=${botHint?.title}`
+  );
   clearActions();
 
   console.log(`\n${failures === 0 ? "ALL TESTS PASSED" : failures + " TEST(S) FAILED"}\n`);

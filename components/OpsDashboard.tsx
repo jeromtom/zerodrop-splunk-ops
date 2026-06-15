@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Severity = "critical" | "high" | "medium" | "low" | "info";
@@ -97,6 +97,10 @@ export function OpsDashboard() {
   const [source, setSource] = useState("buffer");
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState<Record<string, string>>({});
+  // Remediation kinds applied this session — passed to the scan so drop-health
+  // recovers even on serverless runtimes where state doesn't persist between the
+  // apply request and the scan request (the recovery-loop hint).
+  const appliedKindsRef = useRef<Set<string>>(new Set());
 
   const loadFeed = useCallback(async () => {
     const res = await fetch("/api/ops/feed?limit=40", { cache: "no-store" });
@@ -107,12 +111,17 @@ export function OpsDashboard() {
   }, []);
 
   const runScan = useCallback(async () => {
-    const res = await fetch("/api/ops/scan", { cache: "no-store" });
+    const kinds = [...appliedKindsRef.current];
+    const qs = kinds.length ? `?applied=${encodeURIComponent(kinds.join(","))}` : "";
+    const res = await fetch(`/api/ops/scan${qs}`, { cache: "no-store" });
     setReport(await res.json());
   }, []);
 
   const seedAndScan = useCallback(async () => {
     setBusy(true);
+    // Fresh incident: clear any prior remediations so the new drop scores honestly.
+    appliedKindsRef.current.clear();
+    setApplied({});
     try {
       await fetch("/api/ops/seed", {
         method: "POST",
@@ -136,9 +145,12 @@ export function OpsDashboard() {
       });
       const j = await res.json();
       setApplied((p) => ({ ...p, [f.id]: j.applied?.result ?? "Applied." }));
-      loadFeed();
+      if (f.action.kind && f.action.kind !== "none") appliedKindsRef.current.add(f.action.kind);
+      await loadFeed();
+      // Re-scan so the mitigated finding clears and drop-health recovers live.
+      await runScan();
     },
-    [loadFeed]
+    [loadFeed, runScan]
   );
 
   useEffect(() => {

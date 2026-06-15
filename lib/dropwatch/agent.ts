@@ -48,6 +48,13 @@ export interface ScanOptions {
   events?: DropEvent[];
   /** Public request origin, used to resolve a relative SPLUNK_MCP_URL (self-host). */
   origin?: string;
+  /**
+   * Remediation kinds the operator has already applied this session. Lets the
+   * recovery loop work in stateless/serverless runtimes (Cloudflare Workers,
+   * where the apply and the scan can land on different isolates) without relying
+   * on the in-memory applied-action log. Unioned with that log.
+   */
+  appliedKinds?: string[];
 }
 
 export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
@@ -77,7 +84,7 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
   // was already applied (operator clicked Block/Throttle, or the agent auto-
   // remediated), downgrade it to a mitigated INFO note so drop-health climbs on
   // the next scan instead of re-alarming on a threat that is already handled.
-  const ranked = sortBySeverity(recover(findings));
+  const ranked = sortBySeverity(recover(findings, opts.appliedKinds));
   const score = healthScore(ranked);
   const at = new Date().toISOString();
 
@@ -135,8 +142,9 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
  * RECOVER, and the recovery is itself grounded in telemetry (the apply wrote a
  * breadcrumb back to Splunk).
  */
-function recover(findings: Finding[]): Finding[] {
+function recover(findings: Finding[], hintKinds: string[] = []): Finding[] {
   const applied = recentlyAppliedKinds();
+  for (const k of hintKinds) if (k) applied.add(k);
   if (applied.size === 0) return findings;
   return findings.map((f) => {
     if (!f.action || f.action.kind === "none" || !applied.has(f.action.kind)) return f;
