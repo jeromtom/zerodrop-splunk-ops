@@ -112,6 +112,11 @@ immune to false positives** — a property most security pipelines can only drea
   **block** action, and reasons about it with a **Splunk hosted security model
   (Foundation-Sec-8B)** when configured. Provable correctness is what makes the
   reject cluster a zero-false-positive bot signal. (`lib/dropwatch/analyze.ts`, `llm.ts`.)
+- **`| dropwatch` custom SPL command:** run the agent's detection natively in the
+  Splunk search bar: `index=zerodrop sourcetype=zerodrop:telemetry | dropwatch`
+  emits one row per finding (drop-health, stampede, hold-expiry storm, and the
+  OWASP OAT-005 scalping-bot finding), so DropWatch is embedded in Splunk rather
+  than a side dashboard. (`splunk-app/bin/dropwatch.py`, `default/commands.conf`.)
 
 ## What's AI/agentic about it
 
