@@ -70,3 +70,25 @@ function describe(action: OpsAction): string {
 export function recentActions(limit = 20): AppliedAction[] {
   return log.slice(-limit).reverse();
 }
+
+const MITIGATION_WINDOW_MS = 30 * 60 * 1000; // 30 min
+
+/**
+ * Kinds of remediation applied within the mitigation window. The agent uses this
+ * to RECOVER drop-health after an operator (or auto-response) acts: a finding
+ * whose recommended action was applied is downgraded to "mitigated", so the
+ * score climbs on the next scan. The detect -> act -> recover loop, visible.
+ */
+export function recentlyAppliedKinds(): Set<string> {
+  const since = Date.now() - MITIGATION_WINDOW_MS;
+  const kinds = new Set<string>();
+  for (const a of log) {
+    if (a.action.kind !== "none" && Date.parse(a.at) >= since) kinds.add(a.action.kind);
+  }
+  return kinds;
+}
+
+/** Test/demo helper: clear the applied-action log. */
+export function clearActions(): void {
+  log.length = 0;
+}

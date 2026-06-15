@@ -18,6 +18,7 @@ import {
   summarize,
 } from "./analyze";
 import { type LlmTier, reason } from "./llm";
+import { recentlyAppliedKinds } from "./actions";
 import { notifyScan } from "./notify";
 import { agentRuntime, observeScan, type AgentRuntime } from "./agentObs";
 import { fetchTelemetry, type TelemetrySource } from "./search";
@@ -72,7 +73,11 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
   const features = summarize(events, dropId ?? "(all)", windowMin);
   const { findings, tier, llmUsed, model, latencyMs, ok, tokensIn, tokensOut, costUsd, confidence } =
     await reason(features);
-  const ranked = sortBySeverity(findings);
+  // Recovery loop: detect -> act -> RECOVER. If a finding's recommended action
+  // was already applied (operator clicked Block/Throttle, or the agent auto-
+  // remediated), downgrade it to a mitigated INFO note so drop-health climbs on
+  // the next scan instead of re-alarming on a threat that is already handled.
+  const ranked = sortBySeverity(recover(findings));
   const score = healthScore(ranked);
   const at = new Date().toISOString();
 
@@ -120,4 +125,29 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
   await notifyScan(report).catch(() => {});
 
   return report;
+}
+
+/**
+ * Recovery pass: downgrade any finding whose recommended remediation has already
+ * been applied (within the mitigation window). The threat was real, but it is
+ * now handled, so it reads as a resolved INFO note with no health penalty rather
+ * than re-alarming on every scan. This closes the agent loop: detect -> act ->
+ * RECOVER, and the recovery is itself grounded in telemetry (the apply wrote a
+ * breadcrumb back to Splunk).
+ */
+function recover(findings: Finding[]): Finding[] {
+  const applied = recentlyAppliedKinds();
+  if (applied.size === 0) return findings;
+  return findings.map((f) => {
+    if (!f.action || f.action.kind === "none" || !applied.has(f.action.kind)) return f;
+    return {
+      ...f,
+      severity: "info",
+      title: `${f.title} (mitigated)`,
+      reasoning: `Remediation already applied, so this is downgraded to resolved. Original signal: ${f.reasoning}`,
+      recommendation: "Resolved by the applied remediation. DropWatch keeps watching for recurrence.",
+      action: { kind: "none", label: "Mitigated", params: f.action.params },
+      evidence: { ...f.evidence, mitigated: true, mitigatedBy: f.action.kind },
+    };
+  });
 }
