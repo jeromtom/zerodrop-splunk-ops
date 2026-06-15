@@ -52,8 +52,16 @@ function describe(action: OpsAction): string {
       return `Hold window extended to ${Number(action.params?.seconds ?? 900) / 60} min on drop ${action.params?.dropId}.`;
     case "flag_ip_cluster":
       return `IP cluster ${action.params?.subnet ?? action.params?.ip} flagged for soft-block / CAPTCHA.`;
-    case "notify":
-      return `Restock-notify campaign queued for ${action.params?.audience} on drop ${action.params?.dropId}.`;
+    case "notify": {
+      // Restock/waitlist findings carry an `audience`; generic anomaly findings
+      // carry an `eventType` instead. Never render the literal "undefined".
+      if (action.params?.audience)
+        return `Restock-notify campaign queued for ${action.params.audience} on drop ${action.params.dropId}.`;
+      const who = action.params?.eventType
+        ? `the "${action.params.eventType}" spike`
+        : "the anomaly";
+      return `On-call alerted for ${who} on drop ${action.params?.dropId ?? "(all)"}.`;
+    }
     default:
       return "Acknowledged.";
   }

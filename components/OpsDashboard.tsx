@@ -161,8 +161,8 @@ export function OpsDashboard() {
               telemetry: <b className="text-zinc-200">{report?.telemetrySource ?? source}</b> · LLM:{" "}
               <b className="text-zinc-200">{report?.llmTier ?? "—"}</b>
             </span>
-            <Link href="/dashboard" className="hover:text-zinc-100">
-              Dashboard
+            <Link href="/" className="hover:text-zinc-100">
+              ZeroDrop home
             </Link>
           </nav>
         </div>
@@ -305,8 +305,43 @@ export function OpsDashboard() {
 
             {report?.spl && (
               <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3">
-                <div className="text-xs uppercase tracking-widest text-zinc-600">SPL run by agent</div>
-                <code className="mt-1 block break-all font-mono text-xs text-zinc-400">{report.spl}</code>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-widest text-zinc-600">
+                    Telemetry pull path
+                  </div>
+                  <div className="flex items-center gap-1 font-mono text-[10px]">
+                    {(
+                      [
+                        ["mcp", "Splunk MCP Server"],
+                        ["rest", "Splunk REST"],
+                        ["buffer", "local buffer"],
+                      ] as const
+                    ).map(([key, label], i) => (
+                      <span key={key} className="flex items-center gap-1">
+                        <span
+                          className={
+                            (report?.telemetrySource ?? "buffer") === key
+                              ? "rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent"
+                              : "px-1.5 py-0.5 text-zinc-600"
+                          }
+                        >
+                          {label}
+                        </span>
+                        {i < 2 && <span className="text-zinc-700">→</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <code className="mt-2 block break-all font-mono text-xs text-zinc-400">
+                  {report.spl}
+                </code>
+                <div className="mt-1 text-[10px] text-zinc-600">
+                  {report?.telemetrySource === "mcp"
+                    ? "Issued via the Splunk MCP Server’s run_splunk_search tool (MCP JSON-RPC)."
+                    : report?.telemetrySource === "rest"
+                      ? "Issued via the Splunk REST search API."
+                      : "Read from the local ring buffer (offline). Set SPLUNK_MCP_URL to pull via the Splunk MCP Server."}
+                </div>
               </div>
             )}
 

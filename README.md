@@ -75,6 +75,12 @@ over their own streams; the drop taxonomy is just the demo payload.
 - **Packaged Splunk app:** `splunk-app/` ships the dashboard plus **scheduled
   detector alerts** that mirror the agent's logic natively in Splunk, so the
   detectors keep running even when the app is offline.
+- **Runnable Splunk MCP path:** a local Splunk-MCP-contract server
+  (`scripts/mcp-server.mts`, `npm run mcp:server`) lets the agent pull telemetry
+  over the real MCP JSON-RPC `run_splunk_search` tool **end-to-end** —
+  `npm run ops:mcp` proves it (`telemetry: mcp`, 400+ events, zero Splunk
+  account). Point `SPLUNK_MCP_URL` at a real Splunk MCP Server and the same path
+  goes live with no code change. (`lib/dropwatch/search.ts`.)
 - **Agent self-observability (AI agent monitoring):** DropWatch instruments its
   **own** reasoning loop. Every scan records which LLM tier fired (Hosted Models /
   AIML / rules), the model, LLM latency, scan time, and fallbacks, ships them to
@@ -109,7 +115,7 @@ but not provisioned on the Splunk Cloud trial.
 | Generic z-score anomaly detector + leading-indicator early warning | live in-app |
 | AI alert webhooks (Slack / PagerDuty) | live in-app (no-op without `ALERT_WEBHOOK_URL`) |
 | Deterministic rules engine (zero-key fallback) | live in-app |
-| **Splunk MCP Server** search path | **wired + documented, not running on the Cloud trial** |
+| **Splunk MCP Server** search path | **runnable end-to-end now** — `npm run ops:mcp` / `npm run mcp:server` exercise the real MCP JSON-RPC `run_splunk_search` contract against a local MCP server (`telemetry: mcp`); point `SPLUNK_MCP_URL` at a real Splunk MCP Server to go live, no code change. Not on the Cloud *trial* (no mgmt port). |
 | **Splunk Hosted Models** reasoning path | **wired + documented, not running on the Cloud trial** |
 
 The MCP and Hosted-Models paths are real code with documented contracts
@@ -144,6 +150,7 @@ no install of the Next app required (uses Node's built-in TS support):
 ```bash
 npm run ops:demo    # synth a drop -> agent detects stampede + oversell-bot
 npm run ops:test    # end-to-end assertions (all green)
+npm run ops:mcp     # agent pulls telemetry over a LIVE (local) Splunk MCP Server
 ```
 
 Sample `ops:demo` output:
