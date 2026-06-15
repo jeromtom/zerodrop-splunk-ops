@@ -16,7 +16,10 @@
     "ops:demo": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-demo.mts",
     "ops:test": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-test.mts",
     "ops:mcp": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/ops-mcp-demo.mts",
-    "mcp:server": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/mcp-server.mts"
+    "mcp:server": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs scripts/mcp-server.mts",
+    "cf:build": "next build --webpack && opennextjs-cloudflare build --skipNextBuild",
+    "cf:deploy": "npm run cf:build && wrangler deploy",
+    "cf:preview": "npm run cf:build && wrangler dev"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1068.0",
@@ -27,6 +30,7 @@
     "ulid": "^3.0.2"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -35,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.100.0"
   }
 }

@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone output so the OpenNext Cloudflare adapter can bundle a manual
+  // (webpack) build via `--skipNextBuild` (Turbopack server chunks don't load
+  // under OpenNext on Workers — see ChunkLoadError).
+  output: "standalone",
   // Default the agent's telemetry pull path to the app's own self-hosted
   // Splunk-MCP-contract route (app/api/mcp). A relative value is resolved
   // against the request origin at runtime (lib/dropwatch/search.ts ->
