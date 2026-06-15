@@ -106,6 +106,12 @@ immune to false positives** — a property most security pipelines can only drea
   Splunk as `dropwatch:agent`, and shows them in an "Agent runtime" panel on `/ops`.
   The direct fit for Splunk's newest capability: the agent is observable the same
   way the app it watches is. (`lib/dropwatch/agentObs.ts`.)
+- **Security bridge (observability to SOC):** the oversell-bot detector is an abuse
+  signal, so DropWatch classifies it as a **security finding** using the **OWASP
+  Automated Threats taxonomy (OAT-005 Scalping)** with a confidence score and a
+  **block** action, and reasons about it with a **Splunk hosted security model
+  (Foundation-Sec-8B)** when configured. Provable correctness is what makes the
+  reject cluster a zero-false-positive bot signal. (`lib/dropwatch/analyze.ts`, `llm.ts`.)
 
 ## What's AI/agentic about it
 

@@ -64,6 +64,12 @@ async function main() {
     bot?.action?.kind === "flag_ip_cluster",
     bot?.action?.kind
   );
+  const botSec = (bot?.evidence as Record<string, any> | undefined)?.security;
+  check(
+    "oversell-bot framed as OWASP OAT-005 security finding",
+    botSec?.owasp === "OAT-005 Scalping" && typeof botSec?.confidence === "number",
+    `owasp=${botSec?.owasp} confidence=${botSec?.confidence}`
+  );
   const stampede = report.findings.find((f) => f.id === "stampede");
   check(
     "stampede action is enable_throttle",

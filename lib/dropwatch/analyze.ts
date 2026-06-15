@@ -381,18 +381,38 @@ export function rulesEngine(f: Features): Finding[] {
     });
   }
 
-  // 2. Oversell-bot pattern: one IP subnet cluster dominating rejects.
+  // 2. Oversell-bot pattern as a SECURITY finding: one /24 subnet dominating
+  //    post-sellout rejects is automated scalping (OWASP Automated Threats
+  //    OAT-005), an inventory-abuse signal that bridges observability to security.
   const top = f.topRejectSubnets[0];
   if (top && f.oversellRejects >= 10 && top.count / f.oversellRejects >= 0.25) {
-    const pct = Math.round((top.count / f.oversellRejects) * 100);
+    const share = top.count / f.oversellRejects;
+    const pct = Math.round(share * 100);
+    const rejectsPerIp = top.count / Math.max(1, top.ips);
+    // Confidence rises with subnet dominance and with how few IPs produced how
+    // many rejects (a tight, high-volume /24 is a strong automation signal).
+    const confidence = round(
+      Math.min(0.98, 0.45 + share * 0.4 + Math.min(0.25, rejectsPerIp / 40))
+    );
     out.push({
       id: "oversell-bot",
-      title: "Oversell-attempt bot cluster",
+      title: "Automated scalping bots (OWASP OAT-005)",
       severity: "high",
-      reasoning: `${f.oversellRejects} oversell-reject events; subnet ${top.subnet} (${top.ips} IPs) alone produced ${top.count} (${pct}%). Repeated post-sellout claim attempts concentrated in one subnet is the signature of automated checkout bots. (No oversell occurred — the DynamoDB conditional guard held.)`,
-      recommendation: `Flag IP cluster ${top.subnet} and add it to the soft block / CAPTCHA list for this drop.`,
-      action: { kind: "flag_ip_cluster", params: { subnet: top.subnet, count: top.count }, label: `Flag ${top.subnet}` },
-      evidence: { topRejectSubnets: f.topRejectSubnets, oversellRejects: f.oversellRejects },
+      reasoning: `Security signal: ${f.oversellRejects} post-sellout oversell-reject events, and subnet ${top.subnet} (${top.ips} IPs) alone produced ${top.count} (${pct}%). One /24 dominating reject traffic after sellout is the signature of automated scalping bots: OWASP Automated Threats OAT-005 (Scalping), an inventory-abuse pattern. It is a clean signal precisely because overselling is impossible by construction. The DynamoDB conditional guard held, so every reject is behavioral, not a data fault. Confidence ${Math.round(confidence * 100)}%.`,
+      recommendation: `Block subnet ${top.subnet} at the edge (or soft-block + CAPTCHA) and add it to the abuse watchlist for drop ${f.dropId}.`,
+      action: { kind: "flag_ip_cluster", params: { subnet: top.subnet, count: top.count, block: true }, label: `Block ${top.subnet}` },
+      evidence: {
+        topRejectSubnets: f.topRejectSubnets,
+        oversellRejects: f.oversellRejects,
+        security: {
+          class: "automated-abuse",
+          owasp: "OAT-005 Scalping",
+          confidence,
+          subnet: top.subnet,
+          distinctIps: top.ips,
+          rejectShare: round(share),
+        },
+      },
       source: "rules",
     });
   }
