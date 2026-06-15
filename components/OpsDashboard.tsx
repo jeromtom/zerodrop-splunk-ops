@@ -29,6 +29,18 @@ interface ScanReport {
   spl: string;
   healthScore: number;
   eventCount: number;
+  agent?: {
+    scans: number;
+    llmCalls: number;
+    llmErrors: number;
+    avgScanMs: number;
+    avgLlmLatencyMs: number;
+    lastTier: string;
+    lastModel: string;
+    lastScanMs: number;
+    lastLlmLatencyMs: number;
+    sinceIso: string;
+  };
   findings: Finding[];
   features: {
     peakClaimsPerMin: number;
@@ -209,6 +221,43 @@ export function OpsDashboard() {
               </div>
             ))}
         </div>
+
+        {/* AI agent self-observability: DropWatch watching its own agent */}
+        {report?.agent && (
+          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-500">
+                Agent runtime{" "}
+                <span className="font-mono text-[10px] normal-case text-zinc-600">
+                  self-observability → Splunk (sourcetype dropwatch:agent)
+                </span>
+              </h2>
+              <span className="font-mono text-xs text-zinc-500">
+                {report.agent.scans} scans this session
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                ["LLM tier", report.agent.lastTier],
+                ["model", report.agent.lastModel],
+                ["LLM latency", `${report.agent.lastLlmLatencyMs} ms`],
+                ["scan time", `${report.agent.lastScanMs} ms`],
+                ["avg scan", `${report.agent.avgScanMs} ms`],
+                ["LLM fallbacks", `${report.agent.llmErrors}/${report.agent.scans}`],
+              ].map(([label, val]) => (
+                <div key={String(label)} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
+                  <div
+                    className="mt-1 truncate font-mono text-sm font-semibold text-zinc-200"
+                    title={String(val)}
+                  >
+                    {String(val)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {/* findings */}

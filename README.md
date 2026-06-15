@@ -75,6 +75,12 @@ over their own streams; the drop taxonomy is just the demo payload.
 - **Packaged Splunk app:** `splunk-app/` ships the dashboard plus **scheduled
   detector alerts** that mirror the agent's logic natively in Splunk, so the
   detectors keep running even when the app is offline.
+- **Agent self-observability (AI agent monitoring):** DropWatch instruments its
+  **own** reasoning loop. Every scan records which LLM tier fired (Hosted Models /
+  AIML / rules), the model, LLM latency, scan time, and fallbacks, ships them to
+  Splunk as `dropwatch:agent`, and shows them in an "Agent runtime" panel on `/ops`.
+  The direct fit for Splunk's newest capability: the agent is observable the same
+  way the app it watches is. (`lib/dropwatch/agentObs.ts`.)
 
 ## What's AI/agentic about it
 

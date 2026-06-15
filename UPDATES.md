@@ -62,6 +62,14 @@
   is the AI reasoning over Splunk telemetry paging on-call **without a human in the
   loop**.
 
+- **`lib/dropwatch/agentObs.ts` + `lib/splunk.ts` (agent self-observability, AI agent monitoring)**
+  - DropWatch now watches its OWN agent. Each scan records the reasoning tier that
+  fired (Hosted Models / AIML / rules), the model, LLM latency, total scan time, and
+  whether the LLM fell back, then ships those metrics to Splunk under a distinct
+  `dropwatch:agent` sourcetype and surfaces them in an "Agent runtime" panel on `/ops`.
+  This is the direct fit for Splunk's newest capability (AI Agent Monitoring): the
+  agent is observable the same way the app it monitors is. Covered by `npm run ops:test`.
+
 ### 3. Ops UI
 - **`app/ops/page.tsx` + `components/OpsDashboard.tsx`** – a `/ops` dashboard with
   a live telemetry feed, a 0–100 drop-health score, severity-ranked finding cards

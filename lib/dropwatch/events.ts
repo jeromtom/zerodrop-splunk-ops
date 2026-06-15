@@ -39,6 +39,9 @@ export interface DropEvent {
 /** Splunk sourcetype + index used across HEC payloads and SPL searches. */
 export const SOURCETYPE = "zerodrop:telemetry";
 export const METRIC_SOURCETYPE = "zerodrop:metrics";
+/** The agent's OWN telemetry (AI agent self-observability). Distinct sourcetype
+ *  so you can watch DropWatch's reasoning loop the same way it watches the app. */
+export const AGENT_SOURCETYPE = "dropwatch:agent";
 export const INDEX = process.env.SPLUNK_INDEX ?? "zerodrop";
 
 let _seq = 0;

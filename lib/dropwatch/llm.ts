@@ -43,21 +43,35 @@ export interface AgentResult {
   tier: LlmTier;
   /** True when the LLM produced output that was successfully parsed. */
   llmUsed: boolean;
+  /** Model behind the chosen tier (or "rules-engine"). For agent self-observability. */
+  model: string;
+  /** Time spent in the chosen reasoning tier, ms. */
+  latencyMs: number;
+  /** False when an LLM tier was attempted but failed and the agent fell back. */
+  ok: boolean;
 }
 
 export async function reason(features: Features): Promise<AgentResult> {
   const userMsg = JSON.stringify(features);
+  let fellBack = false;
 
   if (HOSTED_URL) {
+    const t0 = Date.now();
     const r = await tryChat(HOSTED_URL, HOSTED_TOKEN, HOSTED_MODEL, userMsg, "hosted-model");
-    if (r) return { findings: r, tier: "hosted-model", llmUsed: true };
+    if (r) return { findings: r, tier: "hosted-model", llmUsed: true, model: HOSTED_MODEL, latencyMs: Date.now() - t0, ok: true };
+    fellBack = true;
   }
   if (AIML_KEY) {
+    const t0 = Date.now();
     const r = await tryChat(`${AIML_BASE}/chat/completions`, AIML_KEY, AIML_MODEL, userMsg, "aiml");
-    if (r) return { findings: r, tier: "aiml", llmUsed: true };
+    if (r) return { findings: r, tier: "aiml", llmUsed: true, model: AIML_MODEL, latencyMs: Date.now() - t0, ok: true };
+    fellBack = true;
   }
-  // Deterministic fallback.
-  return { findings: rulesEngine(features), tier: "rules", llmUsed: false };
+  // Deterministic fallback. ok=false only when an LLM tier was tried and failed
+  // (a real reliability signal); the zero-key default path is ok=true.
+  const t0 = Date.now();
+  const findings = rulesEngine(features);
+  return { findings, tier: "rules", llmUsed: false, model: "rules-engine", latencyMs: Date.now() - t0, ok: !fellBack };
 }
 
 async function tryChat(

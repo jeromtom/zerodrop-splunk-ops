@@ -73,6 +73,11 @@ async function main() {
   check("health score degraded", report.healthScore < 80, String(report.healthScore));
   check("findings severity-ranked", report.findings[0].severity === "critical" || report.findings[0].severity === "high");
   check(
+    "agent self-observability recorded",
+    report.agent != null && report.agent.scans >= 1 && typeof report.agent.lastTier === "string",
+    report.agent ? `tier=${report.agent.lastTier} scanMs=${report.agent.lastScanMs}ms` : "missing"
+  );
+  check(
     "guarantee intact: zero oversell in telemetry",
     !stream.events.some((e) => Number((e.meta as { oversold?: number })?.oversold) > 0)
   );

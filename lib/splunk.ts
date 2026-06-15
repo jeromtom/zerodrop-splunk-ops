@@ -14,6 +14,7 @@
  */
 
 import {
+  AGENT_SOURCETYPE,
   type DropEvent,
   INDEX,
   METRIC_SOURCETYPE,
@@ -70,6 +71,25 @@ export async function emitMetric(
     index: process.env.SPLUNK_METRICS_INDEX ?? "zerodrop_metrics",
     fields: { metric_name: `zerodrop.${name}`, _value: value, ...dimensions },
     event: "metric",
+  });
+}
+
+/**
+ * Ship the AGENT'S OWN telemetry to Splunk (AI agent self-observability):
+ * per-scan reasoning metrics like LLM tier, model, latency, scan time, errors.
+ * Distinct sourcetype (`dropwatch:agent`) so DropWatch's reasoning loop is
+ * observable in Splunk exactly like the app it monitors. No-op-safe.
+ */
+export async function emitAgentEvent(
+  ev: Record<string, unknown> & { at?: string }
+): Promise<HecResult> {
+  return post({
+    time: (ev.at ? Date.parse(ev.at) : Date.now()) / 1000,
+    host: "zerodrop",
+    source: "dropwatch-agent",
+    sourcetype: AGENT_SOURCETYPE,
+    index: INDEX,
+    event: ev,
   });
 }
 

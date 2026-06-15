@@ -19,6 +19,7 @@ import {
 } from "./analyze";
 import { type LlmTier, reason } from "./llm";
 import { notifyScan } from "./notify";
+import { agentRuntime, observeScan, type AgentRuntime } from "./agentObs";
 import { fetchTelemetry, type TelemetrySource } from "./search";
 import type { DropEvent } from "./events";
 
@@ -35,6 +36,8 @@ export interface ScanReport {
   findings: Finding[];
   healthScore: number;
   eventCount: number;
+  /** The agent's own runtime metrics (AI agent self-observability). */
+  agent: AgentRuntime;
 }
 
 export interface ScanOptions {
@@ -46,6 +49,7 @@ export interface ScanOptions {
 
 export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
   const windowMin = opts.windowMin ?? 15;
+  const startedAt = Date.now();
 
   let events: DropEvent[];
   let telemetrySource: TelemetrySource;
@@ -64,13 +68,32 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
 
   const dropId = opts.dropId ?? events.find((e) => e.dropId)?.dropId;
   const features = summarize(events, dropId ?? "(all)", windowMin);
-  const { findings, tier, llmUsed } = await reason(features);
+  const { findings, tier, llmUsed, model, latencyMs, ok } = await reason(features);
   const ranked = sortBySeverity(findings);
+  const score = healthScore(ranked);
+  const at = new Date().toISOString();
+
+  // AI agent self-observability: record this scan's own runtime metrics and ship
+  // them to Splunk (sourcetype dropwatch:agent), then surface them on the report.
+  await observeScan({
+    at,
+    scanMs: Date.now() - startedAt,
+    llmTier: tier,
+    llmModel: model,
+    llmLatencyMs: latencyMs,
+    llmOk: ok,
+    telemetrySource,
+    eventCount: events.length,
+    findingCount: ranked.length,
+    topSeverity: ranked[0]?.severity ?? "info",
+    healthScore: score,
+    dropId,
+  }).catch(() => {});
 
   const report: ScanReport = {
     dropId,
     dropName: features.dropName,
-    generatedAt: new Date().toISOString(),
+    generatedAt: at,
     windowMin,
     telemetrySource,
     llmTier: tier,
@@ -78,8 +101,9 @@ export async function scan(opts: ScanOptions = {}): Promise<ScanReport> {
     spl,
     features,
     findings: ranked,
-    healthScore: healthScore(ranked),
+    healthScore: score,
     eventCount: events.length,
+    agent: agentRuntime(),
   };
 
   // Automate the operational response: if this scan surfaced a high/critical
